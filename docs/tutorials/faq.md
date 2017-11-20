@@ -24,10 +24,32 @@ check `chrome://media-internals` for more info (see [#489(comment)][489]).
 
 **A:** The browser rejected the request.  Look at the browser logs for more
 info.  This is usually a [CORS][] error, which means you need particular
-headers in the response.
+headers in the response.  Additionally, with some manifests, we will send a
+`Range` header.  This will require explicit approval through the CORS header
+`Access-Control-Allow-Headers`.
 
 This can also happen with mixed-content restrictions.  If the site is using
 `https:`, then your manifest and segments must also.
+
+<hr>
+
+**Q:** I am getting `REQUESTED_KEY_SYSTEM_CONFIG_UNAVAILABLE` or error code 6001.
+
+**A:** Check that your platform/browser actually supports the key system.  If
+your manifest contains only Playready, it will need to be played on IE/Edge, a
+Chromecast, or some smart TVs.  Also check the `drm.advanced` configuration for
+the key system.  If you are passing a non-empty robustness, it may not be
+supported by your patform.  See the [DRM tutorial][drm_tutorial] for more info.
+
+Also, to use EME requires using a secure origin.  This means using `https` or
+be on `localhost`.  Currently only Chrome enforces this, but other browsers
+will in the future. See the [announcement][eme_https] for more info.
+
+This will also happen if you use `Storage` to store protected content (when
+`usePersistentLicense` is true).  Currently, the only Chromebooks support
+persistent licenses.  On other platforms, you can only store clear content or
+store only the content offline (i.e. set `usePersistentLicense` configuration to
+false).
 
 <hr>
 
@@ -63,14 +85,17 @@ you see JSON, you will need to [unwrap the response][wrapping].
 **Q:** My HLS manifest doesn't load.
 
 **A:** If your HLS manifest describes MPEG2-TS content, the only browsers
-capable of playing it are Edge, Chromecast and Safari. You will get an
-`UNPLAYABLE_PERIOD` error on other browsers due to their lack of TS support.
+capable of playing it are Edge, Chromecast and Safari. You will get a
+`CONTENT_UNSUPPORTED_BY_BROWSER` error on other browsers due to their lack of TS
+support. We are planning to implement transmuxing TS files to fMP4 so they're
+supported across all browsers. Please subscibe to issue [#887][887] to
+get updates on the progress.
 
 We also were not able to make it work on Safari yet due to a bug in their
 MediaSource implementation ([#743][743]).
 
-Please file a issue if your TS content isn't playing in Chromecast or Edge
-and your MP4 content - on any browser.
+Please file an issue if your TS content fails in Chromecast or Edge or if your
+MP4 content fails anywhere.
 
 <hr>
 
@@ -98,10 +123,13 @@ these initial decisions.
 [386]: https://github.com/google/shaka-player/issues/386#issuecomment-227898001
 [489]: https://github.com/google/shaka-player/issues/489#issuecomment-240466224
 [743]: https://github.com/google/shaka-player/issues/743
+[887]: https://github.com/google/shaka-player/issues/887
 [AbrConfiguration]: https://shaka-player-demo.appspot.com/docs/api/shakaExtern.html#AbrConfiguration
 [CORS]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Access_control_CORS
 [DashManifestConfiguration]: https://shaka-player-demo.appspot.com/docs/api/shakaExtern.html#DashManifestConfiguration
 [StreamingConfiguration]: https://shaka-player-demo.appspot.com/docs/api/shakaExtern.html#StreamingConfiguration
 [auth]: https://shaka-player-demo.appspot.com/docs/api/tutorial-license-server-auth.html
 [buffering]: https://shaka-player-demo.appspot.com/docs/api/tutorial-network-and-buffering-config.html
+[drm_tutorial]: https://shaka-player-demo.appspot.com/docs/api/tutorial-drm-config.html
+[eme_https]: https://sites.google.com/a/chromium.org/dev/Home/chromium-security/deprecating-powerful-features-on-insecure-origins
 [wrapping]: https://shaka-player-demo.appspot.com/docs/api/tutorial-license-wrapping.html

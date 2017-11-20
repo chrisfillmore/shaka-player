@@ -24,7 +24,8 @@
  *   timestamp: number,
  *   id: number,
  *   type: string,
- *   fromAdaptation: boolean
+ *   fromAdaptation: boolean,
+ *   bandwidth: ?number
  * }}
  *
  * @property {number} timestamp
@@ -33,13 +34,15 @@
  * @property {number} id
  *   The id of the track that was chosen.
  * @property {string} type
- *   The type of stream chosen ('variant' or 'text')
+ *   The type of track chosen ('variant' or 'text')
  * @property {boolean} fromAdaptation
  *   True if the choice was made by AbrManager for adaptation; false if it
  *   was made by the application through selectTrack.
+ * @property {?number} bandwidth
+ *   The bandwidth of the chosen track (null for text).
  * @exportDoc
  */
-shakaExtern.StreamChoice;
+shakaExtern.TrackChoice;
 
 
 /**
@@ -78,7 +81,7 @@ shakaExtern.StateChange;
  *   playTime: number,
  *   bufferingTime: number,
  *
- *   switchHistory: !Array.<shakaExtern.StreamChoice>,
+ *   switchHistory: !Array.<shakaExtern.TrackChoice>,
  *   stateHistory: !Array.<shakaExtern.StateChange>
  * }}
  *
@@ -112,13 +115,55 @@ shakaExtern.StateChange;
  * @property {number} bufferingTime
  *   The total time spent in a buffering state in seconds.
  *
- * @property {!Array.<shakaExtern.StreamChoice>} switchHistory
+ * @property {!Array.<shakaExtern.TrackChoice>} switchHistory
  *   A history of the stream changes.
  * @property {!Array.<shakaExtern.StateChange>} stateHistory
  *   A history of the state changes.
  * @exportDoc
  */
 shakaExtern.Stats;
+
+
+/**
+ * @typedef {{
+ *   start: number,
+ *   end: number
+ * }}
+ *
+ * @description
+ * Contains the times of a range of buffered content.
+ *
+ * @property {number} start
+ *   The start time of the range, in seconds.
+ * @property {number} end
+ *   The end time of the range, in seconds.
+ * @exportDoc
+ */
+shakaExtern.BufferedRange;
+
+
+/**
+ * @typedef {{
+ *   total: !Array.<shakaExtern.BufferedRange>,
+ *   audio: !Array.<shakaExtern.BufferedRange>,
+ *   video: !Array.<shakaExtern.BufferedRange>,
+ *   text: !Array.<shakaExtern.BufferedRange>
+ * }}
+ *
+ * @description
+ * Contains information about the current buffered ranges.
+ *
+ * @property {!Array.<shakaExtern.BufferedRange>} total
+ *   The combined audio/video buffered ranges, reported by |video.buffered|.
+ * @property {!Array.<shakaExtern.BufferedRange>} audio
+ *   The buffered ranges for audio content.
+ * @property {!Array.<shakaExtern.BufferedRange>} video
+ *   The buffered ranges for video content.
+ * @property {!Array.<shakaExtern.BufferedRange>} text
+ *   The buffered ranges for text content.
+ * @exportDoc
+ */
+shakaExtern.BufferedInfo;
 
 
 /**
@@ -142,7 +187,10 @@ shakaExtern.Stats;
  *   primary: boolean,
  *   roles: !Array.<string>,
  *   videoId: ?number,
- *   audioId: ?number
+ *   audioId: ?number,
+ *   channelsCount: ?number,
+ *   audioBandwidth: ?number,
+ *   videoBandwidth: ?number
  * }}
  *
  * @description
@@ -182,7 +230,7 @@ shakaExtern.Stats;
  *   The audio/video codecs string provided in the manifest, if present.
  * @property {?string} audioCodec
  *   The audio codecs string provided in the manifest, if present.
-  * @property {?string} videoCodec
+ * @property {?string} videoCodec
  *   The video codecs string provided in the manifest, if present.
  * @property {boolean} primary
  *   True indicates that this in the primary language for the content.
@@ -196,6 +244,12 @@ shakaExtern.Stats;
  *   (only for variant tracks) The video stream id.
  * @property {?number} audioId
  *   (only for variant tracks) The audio stream id.
+ * @property {?number} channelsCount
+ *   The count of the audio track channels.
+ * @property {?number} audioBandwidth
+ *   (only for variant tracks) The audio stream's bandwidth if known.
+ * @property {?number} videoBandwidth
+ *   (only for variant tracks) The video stream's bandwidth if known.
  * @exportDoc
  */
 shakaExtern.Track;
@@ -462,32 +516,14 @@ shakaExtern.DashManifestConfiguration;
 
 /**
  * @typedef {{
- *   defaultTimeOffset: number
- * }}
- *
- * @property {number} defaultTimeOffset
- *   Default time offset (in seconds) for hls content used when no offset
- *   is specified by the manifest. Defaults to 0 if not provided.
- *   NOTE: Default time offset for Apple encoded content is 10 seconds.
- *
- * @exportDoc
- */
-shakaExtern.HlsManifestConfiguration;
-
-
-/**
- * @typedef {{
  *   retryParameters: shakaExtern.RetryParameters,
- *   dash: shakaExtern.DashManifestConfiguration,
- *   hls: shakaExtern.HlsManifestConfiguration
+ *   dash: shakaExtern.DashManifestConfiguration
  * }}
  *
  * @property {shakaExtern.RetryParameters} retryParameters
  *   Retry parameters for manifest requests.
  * @property {shakaExtern.DashManifestConfiguration} dash
  *   Advanced parameters used by the DASH manifest parser.
- * @property {shakaExtern.HlsManifestConfiguration} hls
- *   Advanced parameters used by the HLS manifest parser.
  *
  * @exportDoc
  */
@@ -497,7 +533,7 @@ shakaExtern.ManifestConfiguration;
 /**
  * @typedef {{
  *   retryParameters: shakaExtern.RetryParameters,
- *   infiniteRetriesForLiveStreams: boolean,
+ *   failureCallback: function(!shaka.util.Error),
  *   rebufferingGoal: number,
  *   bufferingGoal: number,
  *   bufferBehind: number,
@@ -512,9 +548,9 @@ shakaExtern.ManifestConfiguration;
  *
  * @property {shakaExtern.RetryParameters} retryParameters
  *   Retry parameters for segment requests.
- * @property {boolean} infiniteRetriesForLiveStreams
- *   If true, will retry infinitely on network errors, for live streams only.
- *   Defaults to true.
+ * @property {function(!shaka.util.Error)} failureCallback
+ *   A callback to decide what to do on a streaming failure.  Default behavior
+ *   is to retry on live streams and not on VOD.
  * @property {number} rebufferingGoal
  *   The minimum number of seconds of content that the StreamingEngine must
  *   buffer before it can begin playback or can continue playback after it has
@@ -594,7 +630,8 @@ shakaExtern.AbrConfiguration;
  *   preferredTextLanguage: string,
  *   restrictions: shakaExtern.Restrictions,
  *   playRangeStart: number,
- *   playRangeEnd: number
+ *   playRangeEnd: number,
+ *   textDisplayFactory: shakaExtern.TextDisplayer.Factory
  * }}
  *
  * @property {shakaExtern.DrmConfiguration} drm
@@ -625,6 +662,8 @@ shakaExtern.AbrConfiguration;
  * @property {number} playRangeEnd
  *   Optional playback and seek end time in seconds. Defaults to the end of
  *   the presentation if not provided.
+ * @property {shakaExtern.TextDisplayer.Factory} textDisplayFactory
+ *   A factory to construct text displayer.
  * @exportDoc
  */
 shakaExtern.PlayerConfiguration;

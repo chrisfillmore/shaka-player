@@ -16,31 +16,26 @@
  */
 
 describe('OfflineManifestParser', function() {
-  var originalIsStorageEngineSupported;
-  var originalCreateStorageEngine;
+  /** @const */
+  var mockSEFactory = new shaka.test.MockStorageEngineFactory();
+
+  /** @const */
+  var playerInterface =
+      /** @type {shakaExtern.ManifestParser.PlayerInterface} */ (null);
+
+  /**
+   * @type {{
+   *   init: !jasmine.Spy,
+   *   destroy: !jasmine.Spy,
+   *   get: !jasmine.Spy,
+   *   insert: !jasmine.Spy
+   * }}
+   */
   var fakeStorageEngine;
-  var fakeCreateStorageEngine;
+  /** @type {shaka.offline.OfflineManifestParser} */
   var parser;
 
-  beforeAll(function() {
-    originalIsStorageEngineSupported =
-        shaka.offline.OfflineUtils.isStorageEngineSupported;
-    originalCreateStorageEngine =
-        shaka.offline.OfflineUtils.createStorageEngine;
-  });
-
-  afterAll(function() {
-    shaka.offline.OfflineUtils.isStorageEngineSupported =
-        originalIsStorageEngineSupported;
-    shaka.offline.OfflineUtils.createStorageEngine =
-        originalCreateStorageEngine;
-  });
-
   beforeEach(function() {
-    shaka.offline.OfflineUtils.isStorageEngineSupported = function() {
-      return true;
-    };
-
     fakeStorageEngine = jasmine.createSpyObj(
         'DBEngine', ['init', 'destroy', 'get', 'insert']);
 
@@ -51,19 +46,23 @@ describe('OfflineManifestParser', function() {
     fakeStorageEngine.get.and.returnValue(getResolve);
     fakeStorageEngine.insert.and.returnValue(commonResolve);
 
-    fakeCreateStorageEngine = jasmine.createSpy('createStorageEngine');
-    fakeCreateStorageEngine.and.returnValue(fakeStorageEngine);
-    shaka.offline.OfflineUtils.createStorageEngine = fakeCreateStorageEngine;
+    var getStorageEngine = function() {
+      return Promise.resolve(fakeStorageEngine);
+    };
+
+    mockSEFactory.overrideIsSupported(true);
+    mockSEFactory.overrideCreate(getStorageEngine);
 
     parser = new shaka.offline.OfflineManifestParser();
   });
 
   afterEach(function() {
     parser.stop();
+    mockSEFactory.resetAll();
   });
 
   it('will query DBEngine for the manifest', function(done) {
-    var uri = 'offline:123';
+    var uri = shaka.offline.OfflineScheme.manifestIdToUri(123);
     fakeStorageEngine.get.and.returnValue(Promise.resolve({
       key: 0,
       originalManifestUri: '',
@@ -75,12 +74,10 @@ describe('OfflineManifestParser', function() {
       appMetadata: null
     }));
 
-    parser.start(uri, /* playerInterface */ null)
+    parser.start(uri, playerInterface)
         .then(function(manifest) {
           expect(manifest).toBeTruthy();
 
-          expect(fakeCreateStorageEngine).toHaveBeenCalledTimes(1);
-          expect(fakeStorageEngine.init).toHaveBeenCalledTimes(1);
           expect(fakeStorageEngine.destroy).toHaveBeenCalledTimes(1);
           expect(fakeStorageEngine.get).toHaveBeenCalledTimes(1);
           expect(fakeStorageEngine.get).toHaveBeenCalledWith('manifest', 123);
@@ -90,10 +87,10 @@ describe('OfflineManifestParser', function() {
   });
 
   it('will fail if manifest not found', function(done) {
-    var uri = 'offline:123';
+    var uri = shaka.offline.OfflineScheme.manifestIdToUri(123);
     fakeStorageEngine.get.and.returnValue(Promise.resolve(null));
 
-    parser.start(uri, /* playerInterface */ null)
+    parser.start(uri, playerInterface)
         .then(fail)
         .catch(function(err) {
           shaka.test.Util.expectToEqualError(
@@ -103,8 +100,6 @@ describe('OfflineManifestParser', function() {
                   shaka.util.Error.Category.STORAGE,
                   shaka.util.Error.Code.REQUESTED_ITEM_NOT_FOUND, 123));
 
-          expect(fakeCreateStorageEngine).toHaveBeenCalledTimes(1);
-          expect(fakeStorageEngine.init).toHaveBeenCalledTimes(1);
           expect(fakeStorageEngine.destroy).toHaveBeenCalledTimes(1);
           expect(fakeStorageEngine.get).toHaveBeenCalledTimes(1);
           expect(fakeStorageEngine.get).toHaveBeenCalledWith('manifest', 123);
@@ -113,22 +108,20 @@ describe('OfflineManifestParser', function() {
   });
 
   it('still calls destroy on error', function(done) {
-    var uri = 'offline:123';
+    var uri = shaka.offline.OfflineScheme.manifestIdToUri(123);
     fakeStorageEngine.get.and.returnValue(Promise.reject());
 
-    parser.start(uri, /* playerInterface */ null)
+    parser.start(uri, playerInterface)
         .then(fail)
         .catch(function(err) {
-          expect(fakeCreateStorageEngine).toHaveBeenCalledTimes(1);
-          expect(fakeStorageEngine.init).toHaveBeenCalledTimes(1);
           expect(fakeStorageEngine.destroy).toHaveBeenCalledTimes(1);
         })
         .then(done);
   });
 
   it('will fail for invalid URI', function(done) {
-    var uri = 'offline:abc';
-    parser.start(uri, /* playerInterface */ null)
+    var uri = 'offline:this-is-invalid';
+    parser.start(uri, playerInterface)
         .then(fail)
         .catch(function(err) {
           shaka.test.Util.expectToEqualError(
@@ -142,12 +135,13 @@ describe('OfflineManifestParser', function() {
   });
 
   describe('update expiration', function() {
+    /** @type {string} */
     var sessionId;
 
     beforeEach(function(done) {
       sessionId = 'abc';
 
-      var uri = 'offline:123';
+      var uri = shaka.offline.OfflineScheme.manifestIdToUri(123);
       fakeStorageEngine.get.and.returnValue(Promise.resolve({
         key: 0,
         originalManifestUri: '',
@@ -160,14 +154,12 @@ describe('OfflineManifestParser', function() {
         appMetadata: null
       }));
 
-      parser.start(uri, /* playerInterface */ null)
+      parser.start(uri, playerInterface)
           .then(function(manifest) {
             expect(manifest).toBeTruthy();
 
-            expect(fakeCreateStorageEngine).toHaveBeenCalledTimes(1);
             fakeStorageEngine.destroy.calls.reset();
             fakeStorageEngine.get.calls.reset();
-            fakeStorageEngine.init.calls.reset();
             fakeStorageEngine.insert.calls.reset();
           })
           .catch(fail)
@@ -211,18 +203,16 @@ describe('OfflineManifestParser', function() {
   });
 
   describe('reconstructing manifest', function() {
-    var originalReconstructPeriod;
-
-    beforeAll(function() {
-      originalReconstructPeriod = shaka.offline.OfflineUtils.reconstructPeriod;
-    });
+    /** @const */
+    var originalReconstructPeriod =
+        shaka.offline.OfflineUtils.reconstructPeriod;
 
     afterAll(function() {
       shaka.offline.OfflineUtils.reconstructPeriod = originalReconstructPeriod;
     });
 
     it('converts non-Period members correctly', function(done) {
-      var uri = 'offline:123';
+      var uri = shaka.offline.OfflineScheme.manifestIdToUri(123);
       var data = {
         key: 123,
         originalManifestUri: 'https://example.com/manifest',
@@ -235,7 +225,7 @@ describe('OfflineManifestParser', function() {
       };
       fakeStorageEngine.get.and.returnValue(Promise.resolve(data));
 
-      parser.start(uri, /* playerInterface */ null)
+      parser.start(uri, playerInterface)
           .then(function(manifest) {
             expect(manifest).toBeTruthy();
             expect(manifest.minBufferTime).toEqual(jasmine.any(Number));
@@ -253,7 +243,7 @@ describe('OfflineManifestParser', function() {
     });
 
     it('will accept DrmInfo', function(done) {
-      var uri = 'offline:123';
+      var uri = shaka.offline.OfflineScheme.manifestIdToUri(123);
       var drmInfo = {
         keySystem: 'com.example.drm',
         licenseServerUri: 'https://example.com/drm',
@@ -279,9 +269,10 @@ describe('OfflineManifestParser', function() {
       fakeStorageEngine.get.and.returnValue(Promise.resolve(data));
 
       var spy = jasmine.createSpy('reconstructPeriod');
-      shaka.offline.OfflineUtils.reconstructPeriod = spy;
+      shaka.offline.OfflineUtils.reconstructPeriod =
+          shaka.test.Util.spyFunc(spy);
 
-      parser.start(uri, /* playerInterface */ null)
+      parser.start(uri, playerInterface)
           .then(function(manifest) {
             expect(manifest).toBeTruthy();
 
@@ -293,7 +284,7 @@ describe('OfflineManifestParser', function() {
     });
 
     it('will call reconstructPeriod for each Period', function(done) {
-      var uri = 'offline:123';
+      var uri = shaka.offline.OfflineScheme.manifestIdToUri(123);
       var data = {
         key: 123,
         originalManifestUri: 'https://example.com/manifest',
@@ -307,9 +298,10 @@ describe('OfflineManifestParser', function() {
       fakeStorageEngine.get.and.returnValue(Promise.resolve(data));
 
       var spy = jasmine.createSpy('reconstructPeriod');
-      shaka.offline.OfflineUtils.reconstructPeriod = spy;
+      shaka.offline.OfflineUtils.reconstructPeriod =
+          shaka.test.Util.spyFunc(spy);
 
-      parser.start(uri, /* playerInterface */ null)
+      parser.start(uri, playerInterface)
           .then(function(manifest) {
             expect(manifest).toBeTruthy();
 

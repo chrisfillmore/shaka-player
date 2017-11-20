@@ -79,11 +79,11 @@ shakaDemo.audioOnlyPoster_ =
 
 
 /**
- * The registered ID of the v2.1 Chromecast receiver demo.
+ * The registered ID of the v2.2 Chromecast receiver demo.
  * @const {string}
  * @private
  */
-shakaDemo.CC_APP_ID_ = '658CCD53';
+shakaDemo.CC_APP_ID_ = '91580C19';
 
 
 /**
@@ -149,6 +149,31 @@ shakaDemo.init = function() {
     var errorDisplay = document.getElementById('errorDisplay');
     errorDisplay.style.display = 'block';
   } else {
+    if (navigator.serviceWorker) {
+      console.debug('Registering service worker.');
+      navigator.serviceWorker.register('service_worker.js')
+          .then(function(registration) {
+            console.debug('Service worker registered!', registration.scope);
+          }).catch(function(error) {
+            console.error('Service worker registration failed!', error);
+          });
+    }
+
+    /** @param {Event} event */
+    var offlineStatusChanged = function(event) {
+      var version = document.getElementById('version');
+      var text = version.textContent;
+      text = text.replace(' (offline)', '');
+      if (!navigator.onLine) {
+        text += ' (offline)';
+      }
+      version.textContent = text;
+      shakaDemo.computeDisabledAssets();
+    };
+    window.addEventListener('online', offlineStatusChanged);
+    window.addEventListener('offline', offlineStatusChanged);
+    offlineStatusChanged(null);
+
     shaka.Player.probeSupport().then(function(support) {
       shakaDemo.support_ = support;
 
@@ -203,6 +228,7 @@ shakaDemo.getParams_ = function() {
   // Because they are being concatenated in this order, if both an
   // URL fragment and an URL parameter of the same type are present
   // the URL fragment takes precendence.
+  /** @type {!Array.<string>} */
   var combined = fields.concat(fragments);
   var params = {};
   for (var i = 0; i < combined.length; ++i) {
@@ -218,6 +244,14 @@ shakaDemo.getParams_ = function() {
   * @private
   */
 shakaDemo.preBrowserCheckParams_ = function(params) {
+  if ('videoRobustness' in params) {
+    document.getElementById('drmSettingsVideoRobustness').value =
+        params['videoRobustness'];
+  }
+  if ('audioRobustness' in params) {
+    document.getElementById('drmSettingsAudioRobustness').value =
+        params['audioRobustness'];
+  }
   if ('lang' in params) {
     document.getElementById('preferredAudioLanguage').value = params['lang'];
     document.getElementById('preferredTextLanguage').value = params['lang'];
@@ -247,7 +281,7 @@ shakaDemo.preBrowserCheckParams_ = function(params) {
     document.body.className = 'noinput';
   }
   if ('play' in params) {
-    document.getElementById('enableAutoplay').checked = true;
+    document.getElementById('enableLoadOnRefresh').checked = true;
   }
   // shaka.log is not set if logging isn't enabled.
   // I.E. if using the compiled version of shaka.
@@ -316,6 +350,28 @@ shakaDemo.postBrowserCheckParams_ = function(params) {
     shakaDemo.updateButtons_(/* canHide */ true);
   }
 
+  var smallGapLimit = document.getElementById('smallGapLimit');
+  smallGapLimit.placeholder = 0.5; // The default smallGapLimit.
+  if ('smallGapLimit' in params) {
+    smallGapLimit.value = params['smallGapLimit'];
+    // Call onGapInput_ manually, because setting the value
+    // programatically doesn't fire 'input' event.
+    var fakeEvent = /** @type {!Event} */({target: smallGapLimit});
+    shakaDemo.onGapInput_(fakeEvent);
+  }
+
+  var jumpLargeGaps = document.getElementById('jumpLargeGaps');
+  if ('jumpLargeGaps' in params) {
+    jumpLargeGaps.checked = true;
+    // Call onJumpLargeGapsChange_ manually, because setting checked
+    // programatically doesn't fire a 'change' event.
+    var fakeEvent = /** @type {!Event} */({target: jumpLargeGaps});
+    shakaDemo.onJumpLargeGapsChange_(fakeEvent);
+  } else {
+    jumpLargeGaps.checked =
+        shakaDemo.player_.getConfiguration().streaming.jumpLargeGaps;
+  }
+
   if ('noadaptation' in params) {
     var enableAdaptation = document.getElementById('enableAdaptation');
     enableAdaptation.checked = false;
@@ -332,6 +388,15 @@ shakaDemo.postBrowserCheckParams_ = function(params) {
     // programatically doesn't fire a 'change' event.
     var fakeEvent = /** @type {!Event} */({target: showTrickPlay});
     shakaDemo.onTrickPlayChange_(fakeEvent);
+  }
+
+  if ('nativecontrols' in params) {
+    var showNative = document.getElementById('showNative');
+    showNative.checked = true;
+    // Call onNativeChange_ manually, because setting checked
+    // programatically doesn't fire a 'change' event.
+    var fakeEvent = /** @type {!Event} */({target: showNative});
+    shakaDemo.onNativeChange_(fakeEvent);
   }
 
   // Allow the hash to be changed, and give it an initial change.
@@ -365,6 +430,7 @@ shakaDemo.hashShouldChange_ = function() {
     return;
 
   var params = [];
+  var oldParams = shakaDemo.getParams_();
 
   // Save the current asset.
   var assetUri;
@@ -413,6 +479,12 @@ shakaDemo.hashShouldChange_ = function() {
   }
 
   // Save config panel state.
+  if (document.getElementById('smallGapLimit').value.length) {
+    params.push('smallGapLimit=' +
+        document.getElementById('smallGapLimit').value);
+  }
+  if (document.getElementById('jumpLargeGaps').checked)
+    params.push('jumpLargeGaps');
   var audioLang = document.getElementById('preferredAudioLanguage').value;
   var textLang = document.getElementById('preferredTextLanguage').value;
   if (textLang != audioLang) {
@@ -430,6 +502,9 @@ shakaDemo.hashShouldChange_ = function() {
   if (document.getElementById('showTrickPlay').checked) {
     params.push('trickplay');
   }
+  if (document.getElementById('showNative').checked) {
+    params.push('nativecontrols');
+  }
   if (shaka.log) {
     var logLevelList = document.getElementById('logLevelList');
     var logLevel = logLevelList[logLevelList.selectedIndex].value;
@@ -437,21 +512,53 @@ shakaDemo.hashShouldChange_ = function() {
       params.push(logLevel);
     }
   }
-  if (document.getElementById('enableAutoplay').checked) {
+  if (document.getElementById('enableLoadOnRefresh').checked) {
     params.push('play');
   }
 
   // This parameter must be added manually, so preserve it.
-  if ('noinput' in shakaDemo.getParams_()) {
+  if ('noinput' in oldParams) {
     params.push('noinput');
   }
 
-  // This parameter must be added manually, so preserve it.
-  // This one is only used by the loader in load.js to decide which version of
+  // Store values for drm configuration.
+  var videoRobustness =
+      document.getElementById('drmSettingsVideoRobustness').value;
+  if (videoRobustness)
+    params.push('videoRobustness=' + videoRobustness);
+  var audioRobustness =
+      document.getElementById('drmSettingsAudioRobustness').value;
+  if (audioRobustness)
+    params.push('audioRobustness=' + audioRobustness);
+
+  // These parameters must be added manually, so preserve them.
+  // These are only used by the loader in load.js to decide which version of
   // the library to load.
-  if ('compiled' in shakaDemo.getParams_()) {
-    params.push('compiled');
+  var buildType = 'uncompiled';
+  var strippedHash = '#' + params.join(';');
+  if ('build' in oldParams) {
+    params.push('build=' + oldParams['build']);
+    buildType = oldParams['build'];
+  } else if ('compiled' in oldParams) {
+    params.push('build=compiled');
+    buildType = 'compiled';
   }
+
+  (['compiled', 'debug_compiled', 'uncompiled']).forEach(function(type) {
+    var elem = document.getElementById(type + '_link');
+    if (buildType == type) {
+      elem.classList.add('disabled_link');
+      elem.tabIndex = -1;
+    } else {
+      elem.classList.remove('disabled_link');
+      elem.tabIndex = 0;
+      elem.onclick = function() {
+        location.hash = strippedHash + ';build=' + type;
+        location.reload();
+        return false;
+      };
+    }
+  });
 
   var newHash = '#' + params.join(';');
   if (newHash != location.hash) {

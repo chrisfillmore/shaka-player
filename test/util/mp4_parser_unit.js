@@ -16,10 +16,13 @@
  */
 
 describe('Mp4Parser', function() {
+  var Util = shaka.test.Util;
+
   var boxData;
   var fullBoxData;
   var boxWithChildData;
   var boxWithSampleDescription;
+  var partialBoxWithSampleDescription;
   var multipleSingleLevelBoxes;
   var twoLevelBoxStructure;
 
@@ -41,9 +44,12 @@ describe('Mp4Parser', function() {
     boxWithChildData = new Uint8Array([
       0x00, 0x00, 0x00, 0x14, // size
       0x62, 0x30, 0x30, 0x33, // type
-      0x00, 0x00, 0x00, 0x0C, // child size
-      0x62, 0x30, 0x33, 0x31, // child type
-      0x00, 0x11, 0x22, 0x33  // child payload
+      0x00, 0x00, 0x00, 0x0C, // child [0] size
+      0x62, 0x30, 0x33, 0x31, // child [0] type
+      0x00, 0x11, 0x22, 0x33, // child [0] payload
+      0x00, 0x00, 0x00, 0x0C, // child [1] size
+      0x62, 0x30, 0x33, 0x32, // child [1] type
+      0x44, 0x55, 0x66, 0x77  // child [1] payload
     ]).buffer;
 
     boxWithSampleDescription = new Uint8Array([
@@ -56,6 +62,16 @@ describe('Mp4Parser', function() {
       0x00, 0x00, 0x00, 0x0C, // child [1] size
       0x62, 0x30, 0x33, 0x33, // child [1] type
       0x44, 0x55, 0x66, 0x77  // child [1] payload
+    ]).buffer;
+
+    partialBoxWithSampleDescription = new Uint8Array([
+      0x00, 0x00, 0x00, 0x24, // size
+      0x62, 0x30, 0x30, 0x33, // type
+      0x00, 0x00, 0x00, 0x02, // number of chidren
+      0x00, 0x00, 0x00, 0x0C, // child [0] size
+      0x62, 0x30, 0x33, 0x32, // child [0] type
+      0x00, 0x11, 0x22, 0x33  // child [0] payload
+      // Omit child [1]
     ]).buffer;
 
     multipleSingleLevelBoxes = new Uint8Array([
@@ -107,7 +123,7 @@ describe('Mp4Parser', function() {
           });
 
       new shaka.util.Mp4Parser()
-          .box('b001', callback).parse(boxData);
+          .box('b001', Util.spyFunc(callback)).parse(boxData);
 
       expect(callback).toHaveBeenCalled();
     });
@@ -121,7 +137,7 @@ describe('Mp4Parser', function() {
           });
 
       new shaka.util.Mp4Parser()
-          .fullBox('b001', callback).parse(fullBoxData);
+          .fullBox('b001', Util.spyFunc(callback)).parse(fullBoxData);
 
       expect(callback).toHaveBeenCalled();
     });
@@ -132,7 +148,14 @@ describe('Mp4Parser', function() {
       var parentBox = jasmine.createSpy('parent box').and.callFake(
           shaka.util.Mp4Parser.children);
 
-      var childBox = jasmine.createSpy('child box').and.callFake(
+      var childBox1 = jasmine.createSpy('child box 1').and.callFake(
+          function(box) {
+            expect(box.size).toEqual(12);
+            expect(box.version).toEqual(null);
+            expect(box.flags).toEqual(null);
+          });
+
+      var childBox2 = jasmine.createSpy('child box 2').and.callFake(
           function(box) {
             expect(box.size).toEqual(12);
             expect(box.version).toEqual(null);
@@ -140,11 +163,34 @@ describe('Mp4Parser', function() {
           });
 
       new shaka.util.Mp4Parser()
-          .box('b003', parentBox)
-          .box('b031', childBox).parse(boxWithChildData);
+          .box('b003', Util.spyFunc(parentBox))
+          .box('b031', Util.spyFunc(childBox1))
+          .box('b032', Util.spyFunc(childBox2)).parse(boxWithChildData);
 
       expect(parentBox).toHaveBeenCalled();
-      expect(childBox).toHaveBeenCalled();
+      expect(childBox1).toHaveBeenCalled();
+      expect(childBox2).toHaveBeenCalled();
+    });
+
+    it('stops reading children when asked to', function() {
+      var parentBox = jasmine.createSpy('parent box').and.callFake(
+          shaka.util.Mp4Parser.children);
+
+      var childBox1 = jasmine.createSpy('child box 1').and.callFake(
+          function(box) {
+            box.parser.stop();
+          });
+
+      var childBox2 = jasmine.createSpy('child box 2');
+
+      new shaka.util.Mp4Parser()
+          .box('b003', Util.spyFunc(parentBox))
+          .box('b031', Util.spyFunc(childBox1))
+          .box('b032', Util.spyFunc(childBox2)).parse(boxWithChildData);
+
+      expect(parentBox).toHaveBeenCalled();
+      expect(childBox1).toHaveBeenCalled();
+      expect(childBox2).not.toHaveBeenCalled();
     });
 
     it('reads all data definition', function() {
@@ -164,20 +210,38 @@ describe('Mp4Parser', function() {
     });
 
     it('reads sample description definition', function() {
-
       var parentBox = jasmine.createSpy('parent box').and.callFake(
           shaka.util.Mp4Parser.sampleDescription);
       var childBox1 = jasmine.createSpy('child box 1');
       var childBox2 = jasmine.createSpy('child box 2');
 
       new shaka.util.Mp4Parser()
-          .box('b003', parentBox)
-          .box('b032', childBox1)
-          .box('b033', childBox2).parse(boxWithSampleDescription);
+          .box('b003', Util.spyFunc(parentBox))
+          .box('b032', Util.spyFunc(childBox1))
+          .box('b033', Util.spyFunc(childBox2)).parse(boxWithSampleDescription);
 
       expect(parentBox).toHaveBeenCalledTimes(1);
       expect(childBox1).toHaveBeenCalledTimes(1);
       expect(childBox2).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops reading sample description when asked to', function() {
+      var parentBox = jasmine.createSpy('parent box').and.callFake(
+          shaka.util.Mp4Parser.sampleDescription);
+      var childBox1 = jasmine.createSpy('child box 1').and.callFake(
+          function(box) {
+            box.parser.stop();
+          });
+      var childBox2 = jasmine.createSpy('child box 2');
+
+      new shaka.util.Mp4Parser()
+          .box('b003', Util.spyFunc(parentBox))
+          .box('b032', Util.spyFunc(childBox1))
+          .box('b033', Util.spyFunc(childBox2)).parse(boxWithSampleDescription);
+
+      expect(parentBox).toHaveBeenCalledTimes(1);
+      expect(childBox1).toHaveBeenCalledTimes(1);
+      expect(childBox2).not.toHaveBeenCalled();
     });
   });
 
@@ -188,9 +252,9 @@ describe('Mp4Parser', function() {
       var box3 = jasmine.createSpy('box 3');
 
       new shaka.util.Mp4Parser()
-          .box('b001', box1)
-          .box('b002', box2)
-          .box('b003', box3).parse(multipleSingleLevelBoxes);
+          .box('b001', Util.spyFunc(box1))
+          .box('b002', Util.spyFunc(box2))
+          .box('b003', Util.spyFunc(box3)).parse(multipleSingleLevelBoxes);
 
       expect(box1).toHaveBeenCalled();
       expect(box2).toHaveBeenCalled();
@@ -205,8 +269,8 @@ describe('Mp4Parser', function() {
       var box3 = jasmine.createSpy('box 3');
 
       new shaka.util.Mp4Parser()
-          .box('b001', box1)
-          .box('b003', box3).parse(multipleSingleLevelBoxes);
+          .box('b001', Util.spyFunc(box1))
+          .box('b003', Util.spyFunc(box3)).parse(multipleSingleLevelBoxes);
 
       expect(box1).toHaveBeenCalled();
       expect(box3).toHaveBeenCalled();
@@ -220,13 +284,49 @@ describe('Mp4Parser', function() {
       // Listing a definition for box 2's child but not for box 2 should mean
       // box 2's child is never parsed.
       new shaka.util.Mp4Parser()
-          .box('b010', box1)
-          .box('b021', box2Child)
-          .box('b030', box3).parse(twoLevelBoxStructure);
+          .box('b010', Util.spyFunc(box1))
+          .box('b021', Util.spyFunc(box2Child))
+          .box('b030', Util.spyFunc(box3)).parse(twoLevelBoxStructure);
 
       expect(box1).toHaveBeenCalled();
       expect(box2Child).not.toHaveBeenCalled();
       expect(box3).toHaveBeenCalled();
+    });
+
+    it('can parse partial parent box and find first child', function() {
+      var parentBox = jasmine.createSpy('parent box').and.callFake(
+          shaka.util.Mp4Parser.sampleDescription);
+
+      var childBox1 = jasmine.createSpy('child box 1').and.callFake(
+          function(box) {
+            // We found what we were looking for, so stop parsing.
+            box.parser.stop();
+          });
+
+      try {
+        new shaka.util.Mp4Parser()
+            .box('b003', Util.spyFunc(parentBox))
+            .box('b032', Util.spyFunc(childBox1))
+            .parse(partialBoxWithSampleDescription, false /* partialOkay */);
+        fail('Should not have been able to parse!');
+      } catch (error) {
+        Util.expectToEqualError(error, new shaka.util.Error(
+            shaka.util.Error.Severity.CRITICAL,
+            shaka.util.Error.Category.MEDIA,
+            shaka.util.Error.Code.BUFFER_READ_OUT_OF_BOUNDS));
+      }
+
+      parentBox.calls.reset();
+      childBox1.calls.reset();
+
+      // With the partialOkay flag set to true, this should succeed.
+      new shaka.util.Mp4Parser()
+          .box('b003', Util.spyFunc(parentBox))
+          .box('b032', Util.spyFunc(childBox1))
+          .parse(partialBoxWithSampleDescription, true /* partialOkay */);
+
+      expect(parentBox).toHaveBeenCalledTimes(1);
+      expect(childBox1).toHaveBeenCalledTimes(1);
     });
   });
 });
