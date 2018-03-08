@@ -16,11 +16,7 @@
  */
 
 describe('DataUriPlugin', function() {
-  var retryParameters;
-
-  beforeAll(function() {
-    retryParameters = shaka.net.NetworkingEngine.defaultRetryParameters();
-  });
+  const retryParameters = shaka.net.NetworkingEngine.defaultRetryParameters();
 
   it('supports MIME types', function(done) {
     testSucceeds('data:text/plain,Hello', 'text/plain', 'Hello', done);
@@ -69,15 +65,15 @@ describe('DataUriPlugin', function() {
   });
 
   function testSucceeds(uri, contentType, text, done) {
-    var request =
+    let request =
         shaka.net.NetworkingEngine.makeRequest([uri], retryParameters);
-    shaka.net.DataUriPlugin(uri, request)
+    shaka.net.DataUriPlugin(uri, request).promise
         .then(function(response) {
           expect(response).toBeTruthy();
           expect(response.uri).toBe(uri);
           expect(response.data).toBeTruthy();
           expect(response.headers['content-type']).toBe(contentType);
-          var data = shaka.util.StringUtils.fromBytesAutoDetect(response.data);
+          let data = shaka.util.StringUtils.fromBytesAutoDetect(response.data);
           expect(data).toBe(text);
         })
         .catch(fail)
@@ -85,9 +81,9 @@ describe('DataUriPlugin', function() {
   }
 
   function testFails(uri, done, code) {
-    var request =
+    let request =
         shaka.net.NetworkingEngine.makeRequest([uri], retryParameters);
-    shaka.net.DataUriPlugin(uri, request)
+    shaka.net.DataUriPlugin(uri, request).promise
         .then(fail)
         .catch(function(error) { expect(error.code).toBe(code); })
         .then(function() {

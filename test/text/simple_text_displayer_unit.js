@@ -17,18 +17,18 @@
 
 
 describe('SimpleTextDisplayer', function() {
-  /** @const */
-  var originalVTTCue = window.VTTCue;
-  /** @const */
-  var Cue = shaka.text.Cue;
-  /** @const */
-  var SimpleTextDisplayer = shaka.text.SimpleTextDisplayer;
+  const originalVTTCue = window.VTTCue;
+  const originalVTTRegion = window.VTTRegion;
+  const Cue = shaka.text.Cue;
+  const CueRegion = shaka.text.CueRegion;
+  const SimpleTextDisplayer = shaka.text.SimpleTextDisplayer;
+
   /** @type {!shaka.test.FakeVideo} */
-  var video;
+  let video;
   /** @type {!shaka.test.FakeTextTrack} */
-  var mockTrack;
+  let mockTrack;
   /** @type {!shaka.text.SimpleTextDisplayer} */
-  var displayer;
+  let displayer;
 
   beforeEach(function() {
     video = new shaka.test.FakeVideo();
@@ -50,10 +50,17 @@ describe('SimpleTextDisplayer', function() {
       this.text = text;
     }
     window.VTTCue = /** @type {?} */(FakeVTTCue);
+
+    /**
+     * @constructor
+     */
+    function FakeVTTRegion() {}
+    window.VTTRegion = /** @type {?} */(FakeVTTRegion);
   });
 
   afterAll(function() {
     window.VTTCue = originalVTTCue;
+    window.VTTRegion = originalVTTRegion;
   });
 
   describe('append', function() {
@@ -90,9 +97,9 @@ describe('SimpleTextDisplayer', function() {
 
   describe('remove', function() {
     it('removes cues which overlap the range', function() {
-      var cue1 = new shaka.text.Cue(0, 1, 'Test');
-      var cue2 = new shaka.text.Cue(1, 2, 'Test');
-      var cue3 = new shaka.text.Cue(2, 3, 'Test');
+      let cue1 = new shaka.text.Cue(0, 1, 'Test');
+      let cue2 = new shaka.text.Cue(1, 2, 'Test');
+      let cue3 = new shaka.text.Cue(2, 3, 'Test');
       displayer.append([cue1, cue2, cue3]);
 
       displayer.remove(0, 1);
@@ -134,7 +141,7 @@ describe('SimpleTextDisplayer', function() {
             new shaka.text.Cue(20, 40, 'Test')
           ]);
 
-      var cue1 = new shaka.text.Cue(20, 40, 'Test');
+      let cue1 = new shaka.text.Cue(20, 40, 'Test');
       cue1.positionAlign = Cue.positionAlign.LEFT;
       cue1.lineAlign = Cue.lineAlign.START;
       cue1.size = 80;
@@ -161,7 +168,7 @@ describe('SimpleTextDisplayer', function() {
             }
           ], [cue1]);
 
-      var cue2 = new shaka.text.Cue(30, 50, 'Test');
+      let cue2 = new shaka.text.Cue(30, 50, 'Test');
       cue2.positionAlign = Cue.positionAlign.RIGHT;
       cue2.lineAlign = Cue.lineAlign.END;
       cue2.textAlign = Cue.textAlign.RIGHT;
@@ -184,7 +191,7 @@ describe('SimpleTextDisplayer', function() {
             }
           ], [cue2]);
 
-      var cue3 = new shaka.text.Cue(40, 60, 'Test');
+      let cue3 = new shaka.text.Cue(40, 60, 'Test');
       cue3.positionAlign = Cue.positionAlign.CENTER;
       cue3.lineAlign = Cue.lineAlign.CENTER;
       cue3.textAlign = Cue.textAlign.START;
@@ -203,7 +210,7 @@ describe('SimpleTextDisplayer', function() {
             }
           ], [cue3]);
 
-      var cue4 = new shaka.text.Cue(40, 60, 'Test');
+      let cue4 = new shaka.text.Cue(40, 60, 'Test');
       cue4.line = null;
       cue4.position = null;
 
@@ -220,7 +227,7 @@ describe('SimpleTextDisplayer', function() {
             }
           ], [cue4]);
 
-      var cue5 = new shaka.text.Cue(40, 60, 'Test');
+      let cue5 = new shaka.text.Cue(40, 60, 'Test');
       cue5.line = 0;
       cue5.position = 0;
 
@@ -244,7 +251,7 @@ describe('SimpleTextDisplayer', function() {
        * @param {string} text
        */
       function FakeVTTCueWithoutAlignCenter(start, end, text) {
-        var align = 'middle';
+        let align = 'middle';
         Object.defineProperty(this, 'align', {
           get: function() { return align; },
           set: function(newValue) {
@@ -257,7 +264,7 @@ describe('SimpleTextDisplayer', function() {
       }
       window.VTTCue = /** @type {?} */(FakeVTTCueWithoutAlignCenter);
 
-      var cue1 = new shaka.text.Cue(20, 40, 'Test');
+      let cue1 = new shaka.text.Cue(20, 40, 'Test');
       cue1.textAlign = Cue.textAlign.CENTER;
 
       verifyHelper(
@@ -273,16 +280,74 @@ describe('SimpleTextDisplayer', function() {
     });
 
     it('ignores cues with startTime >= endTime', function() {
-      var cue1 = new shaka.text.Cue(60, 40, 'Test');
-      var cue2 = new shaka.text.Cue(40, 40, 'Test');
+      let cue1 = new shaka.text.Cue(60, 40, 'Test');
+      let cue2 = new shaka.text.Cue(40, 40, 'Test');
       displayer.append([cue1, cue2]);
       expect(mockTrack.addCue).not.toHaveBeenCalled();
     });
   });
 
+  describe('ConvertToVttRegion', function() {
+    it('converts shaka.text.CueRegions to VTTRegions', function() {
+      let region1 = new shaka.text.CueRegion();
+      region1.id = 'reg1';
+      region1.width = 50;
+      region1.scroll = CueRegion.scrollMode.UP;
+      region1.height = 3;
+      region1.heightUnits = CueRegion.units.LINES;
+
+      let cue1 = new shaka.text.Cue(20, 40, 'Test');
+      cue1.region = region1;
+
+      verifyHelper(
+          [
+            {
+              start: 20,
+              end: 40,
+              text: 'Test',
+              region: {
+                viewportAnchorX: 0,
+                viewportAnchorY: 0,
+                regionAnchorX: 0,
+                regionAnchorY: 0,
+                width: 50,
+                lines: 3,
+                scroll: 'up'
+              }
+            }
+          ], [cue1]);
+    });
+
+    it('converts pixel values to percentage', function() {
+      let region1 = new shaka.text.CueRegion();
+      region1.id = 'reg1';
+      region1.width = 500;
+      region1.widthUnits = CueRegion.units.PX;
+      region1.viewportAnchorX = 100;
+      region1.viewportAnchorY = 100;
+      region1.viewportAnchorUnits = CueRegion.units.PX;
+
+      let cue1 = new shaka.text.Cue(20, 40, 'Test');
+      cue1.region = region1;
+
+      verifyHelper(
+          [
+            {
+              start: 20,
+              end: 40,
+              text: 'Test',
+              region: {
+                viewportAnchorX: 10,
+                viewportAnchorY: 10,
+                width: 50
+              }
+            }
+          ], [cue1]);
+    });
+  });
 
   function createFakeCue(startTime, endTime) {
-    return { startTime: startTime, endTime: endTime };
+    return {startTime: startTime, endTime: endTime};
   }
 
   /**
@@ -292,28 +357,64 @@ describe('SimpleTextDisplayer', function() {
   function verifyHelper(vttCues, shakaCues) {
     mockTrack.addCue.calls.reset();
     displayer.append(shakaCues);
-    var result = mockTrack.addCue.calls.allArgs().reduce(
+    let result = mockTrack.addCue.calls.allArgs().reduce(
         shaka.util.Functional.collapseArrays, []);
     expect(result).toBeTruthy();
     expect(result.length).toBe(vttCues.length);
 
-    for (var i = 0; i < vttCues.length; i++) {
+    for (let i = 0; i < vttCues.length; i++) {
       expect(result[i].startTime).toBe(vttCues[i].start);
       expect(result[i].endTime).toBe(vttCues[i].end);
       expect(result[i].text).toBe(vttCues[i].text);
 
-      if ('id' in vttCues[i])
+      if ('id' in vttCues[i]) {
         expect(result[i].id).toBe(vttCues[i].id);
-      if ('vertical' in vttCues[i])
+      }
+      if ('vertical' in vttCues[i]) {
         expect(result[i].vertical).toBe(vttCues[i].vertical);
-      if ('line' in vttCues[i])
+      }
+      if ('line' in vttCues[i]) {
         expect(result[i].line).toBe(vttCues[i].line);
-      if ('align' in vttCues[i])
+      }
+      if ('align' in vttCues[i]) {
         expect(result[i].align).toBe(vttCues[i].align);
-      if ('size' in vttCues[i])
+      }
+      if ('size' in vttCues[i]) {
         expect(result[i].size).toBe(vttCues[i].size);
-      if ('position' in vttCues[i])
+      }
+      if ('position' in vttCues[i]) {
         expect(result[i].position).toBe(vttCues[i].position);
+      }
+      if ('region' in vttCues[i]) {
+        verifyRegion(result[i].region, vttCues[i].region);
+      }
+    }
+  }
+
+  function verifyRegion(actual, expected) {
+    if ('id' in expected) {
+      expect(actual.id).toBe(expected.id);
+    }
+    if ('width' in expected) {
+      expect(actual.width).toBe(expected.width);
+    }
+    if ('lines' in expected) {
+      expect(actual.lines).toBe(expected.lines);
+    }
+    if ('regionAnchorX' in expected) {
+      expect(actual.regionAnchorX).toBe(expected.regionAnchorX);
+    }
+    if ('regionAnchorY' in expected) {
+      expect(actual.regionAnchorY).toBe(expected.regionAnchorY);
+    }
+    if ('viewportAnchorX' in expected) {
+      expect(actual.viewportAnchorX).toBe(expected.viewportAnchorX);
+    }
+    if ('viewportAnchorY' in expected) {
+      expect(actual.viewportAnchorY).toBe(expected.viewportAnchorY);
+    }
+    if ('scroll' in expected) {
+      expect(actual.scroll).toBe(expected.scroll);
     }
   }
 });

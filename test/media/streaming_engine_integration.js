@@ -16,56 +16,52 @@
  */
 
 describe('StreamingEngine', function() {
-  /** @const */
-  var ContentType = shaka.util.ManifestParserUtils.ContentType;
-  /** @const */
-  var Util = shaka.test.Util;
+  const ContentType = shaka.util.ManifestParserUtils.ContentType;
+  const Util = shaka.test.Util;
 
-  var metadata;
-  var generators;
+  let metadata;
+  let generators;
 
   /** @type {!shaka.util.EventManager} */
-  var eventManager;
+  let eventManager;
   /** @type {!HTMLVideoElement} */
-  var video;
-  var timeline;
+  let video;
+  let timeline;
 
   /** @type {!shaka.media.Playhead} */
-  var playhead;
+  let playhead;
   /** @type {shakaExtern.StreamingConfiguration} */
-  var config;
+  let config;
 
-  var netEngine;
-  /** @type {!MediaSource} */
-  var mediaSource;
+  let netEngine;
   /** @type {!shaka.media.MediaSourceEngine} */
-  var mediaSourceEngine;
+  let mediaSourceEngine;
   /** @type {!shaka.media.StreamingEngine} */
-  var streamingEngine;
+  let streamingEngine;
 
 
   /** @type {shakaExtern.Variant} */
-  var variant1;
+  let variant1;
   /** @type {shakaExtern.Variant} */
-  var variant2;
+  let variant2;
 
   /** @type {shakaExtern.Manifest} */
-  var manifest;
+  let manifest;
 
   /** @type {!jasmine.Spy} */
-  var onBuffering;
+  let onBuffering;
   /** @type {!jasmine.Spy} */
-  var onChooseStreams;
+  let onChooseStreams;
   /** @type {!jasmine.Spy} */
-  var onCanSwitch;
+  let onCanSwitch;
   /** @type {!jasmine.Spy} */
-  var onError;
+  let onError;
   /** @type {!jasmine.Spy} */
-  var onEvent;
+  let onEvent;
   /** @type {!jasmine.Spy} */
-  var onInitialStreamsSetup;
+  let onInitialStreamsSetup;
   /** @type {!jasmine.Spy} */
-  var onStartupComplete;
+  let onStartupComplete;
 
   beforeAll(function() {
     video = /** @type {!HTMLVideoElement} */ (document.createElement('video'));
@@ -78,7 +74,7 @@ describe('StreamingEngine', function() {
     generators = {};
   });
 
-  beforeEach(function(done) {
+  beforeEach(function() {
     // shakaExtern.StreamingConfiguration
     config = {
       rebufferingGoal: 2,
@@ -103,13 +99,11 @@ describe('StreamingEngine', function() {
     onEvent = jasmine.createSpy('onEvent');
 
     eventManager = new shaka.util.EventManager();
-    setupMediaSource().catch(fail).then(done);
+    mediaSourceEngine = new shaka.media.MediaSourceEngine(video);
   });
 
   afterEach(function(done) {
     streamingEngine.destroy().then(function() {
-      video.removeAttribute('src');
-      video.load();
       return Promise.all([
         mediaSourceEngine.destroy(),
         playhead.destroy(),
@@ -127,24 +121,6 @@ describe('StreamingEngine', function() {
     document.body.removeChild(video);
   });
 
-  // Setup MediaSource and MediaSourceEngine.
-  function setupMediaSource() {
-    mediaSource = new MediaSource();
-    video.src = window.URL.createObjectURL(mediaSource);
-
-    var p = new shaka.util.PublicPromise();
-    var onMediaSourceOpen = function() {
-      eventManager.unlisten(mediaSource, 'sourceopen');
-      mediaSource.duration = 0;
-      mediaSourceEngine = new shaka.media.MediaSourceEngine(
-          video, mediaSource, null);
-      p.resolve();
-    };
-    eventManager.listen(mediaSource, 'sourceopen', onMediaSourceOpen);
-
-    return p;
-  }
-
   function setupVod() {
     return Promise.all([
       createVodStreamGenerator(metadata.audio, ContentType.AUDIO),
@@ -154,14 +130,15 @@ describe('StreamingEngine', function() {
           0 /* segmentAvailabilityStart */,
           60 /* segmentAvailabilityEnd */,
           60 /* presentationDuration */,
+          metadata.video.segmentDuration /* maxSegmentDuration */,
           false /* isLive */);
 
       setupNetworkingEngine(
           0 /* firstPeriodStartTime */,
           30 /* secondPeriodStartTime */,
           60 /* presentationDuration */,
-          { audio: metadata.audio.segmentDuration,
-            video: metadata.video.segmentDuration });
+          {audio: metadata.audio.segmentDuration,
+            video: metadata.video.segmentDuration});
 
       setupManifest(
           0 /* firstPeriodStartTime */,
@@ -189,14 +166,15 @@ describe('StreamingEngine', function() {
           275 - 10 /* segmentAvailabilityStart */,
           295 - 10 /* segmentAvailabilityEnd */,
           Infinity /* presentationDuration */,
+          metadata.video.segmentDuration /* maxSegmentDuration */,
           true /* isLive */);
 
       setupNetworkingEngine(
           0 /* firstPeriodStartTime */,
           300 /* secondPeriodStartTime */,
           Infinity /* presentationDuration */,
-          { audio: metadata.audio.segmentDuration,
-            video: metadata.video.segmentDuration });
+          {audio: metadata.audio.segmentDuration,
+            video: metadata.video.segmentDuration});
 
       setupManifest(
           0 /* firstPeriodStartTime */,
@@ -209,7 +187,7 @@ describe('StreamingEngine', function() {
   }
 
   function createVodStreamGenerator(metadata, type) {
-    var generator = new shaka.test.DashVodStreamGenerator(
+    let generator = new shaka.test.DashVodStreamGenerator(
         metadata.initSegmentUri,
         metadata.mvhdOffset,
         metadata.segmentUri,
@@ -223,8 +201,8 @@ describe('StreamingEngine', function() {
   function createLiveStreamGenerator(metadata, type, timeShiftBufferDepth) {
     // Set the generator's AST to 295 seconds in the past so the
     // StreamingEngine begins streaming close to the end of the first Period.
-    var now = Date.now() / 1000;
-    var generator = new shaka.test.DashLiveStreamGenerator(
+    let now = Date.now() / 1000;
+    let generator = new shaka.test.DashLiveStreamGenerator(
         metadata.initSegmentUri,
         metadata.mvhdOffset,
         metadata.segmentUri,
@@ -240,13 +218,13 @@ describe('StreamingEngine', function() {
 
   function setupNetworkingEngine(firstPeriodStartTime, secondPeriodStartTime,
                                  presentationDuration, segmentDurations) {
-    var periodStartTimes = [firstPeriodStartTime, secondPeriodStartTime];
+    let periodStartTimes = [firstPeriodStartTime, secondPeriodStartTime];
 
-    var boundsCheckPosition =
+    let boundsCheckPosition =
         shaka.test.StreamingEngineUtil.boundsCheckPosition.bind(
             null, periodStartTimes, presentationDuration, segmentDurations);
 
-    var getNumSegments =
+    let getNumSegments =
         shaka.test.StreamingEngineUtil.getNumSegments.bind(
             null, periodStartTimes, presentationDuration, segmentDurations);
 
@@ -256,8 +234,8 @@ describe('StreamingEngine', function() {
         // Init segment generator:
         function(type, periodNumber) {
           expect(periodNumber).toBeLessThan(periodStartTimes.length + 1);
-          var wallClockTime = Date.now() / 1000;
-          var segment = generators[type].getInitSegment(wallClockTime);
+          let wallClockTime = Date.now() / 1000;
+          let segment = generators[type].getInitSegment(wallClockTime);
           expect(segment).not.toBeNull();
           return segment;
         },
@@ -268,13 +246,14 @@ describe('StreamingEngine', function() {
 
           // Compute the total number of segments in all Periods before the
           // |periodNumber|'th one.
-          var numPriorSegments = 0;
-          for (var n = 1; n < periodNumber; ++n)
+          let numPriorSegments = 0;
+          for (let n = 1; n < periodNumber; ++n) {
             numPriorSegments += getNumSegments(type, n);
+          }
 
-          var wallClockTime = Date.now() / 1000;
+          let wallClockTime = Date.now() / 1000;
 
-          var segment = generators[type].getSegment(
+          let segment = generators[type].getSegment(
               position, numPriorSegments, wallClockTime);
           expect(segment).not.toBeNull();
           return segment;
@@ -283,7 +262,7 @@ describe('StreamingEngine', function() {
 
   function setupPlayhead() {
     onBuffering = jasmine.createSpy('onBuffering');
-    var onSeek = function() { streamingEngine.seeked(); };
+    let onSeek = function() { streamingEngine.seeked(); };
     playhead = new shaka.media.Playhead(
         /** @type {!HTMLVideoElement} */(video),
         /** @type {shakaExtern.Manifest} */ (manifest),
@@ -297,8 +276,8 @@ describe('StreamingEngine', function() {
       firstPeriodStartTime, secondPeriodStartTime, presentationDuration) {
     manifest = shaka.test.StreamingEngineUtil.createManifest(
         [firstPeriodStartTime, secondPeriodStartTime], presentationDuration,
-        { audio: metadata.audio.segmentDuration,
-          video: metadata.video.segmentDuration });
+        {audio: metadata.audio.segmentDuration,
+          video: metadata.video.segmentDuration});
 
     manifest.presentationTimeline =
         /** @type {!shaka.media.PresentationTimeline} */ (timeline);
@@ -320,7 +299,7 @@ describe('StreamingEngine', function() {
   }
 
   function createStreamingEngine() {
-    var playerInterface = {
+    let playerInterface = {
       playhead: playhead,
       mediaSourceEngine: mediaSourceEngine,
       netEngine: /** @type {!shaka.net.NetworkingEngine} */(netEngine),
@@ -348,7 +327,7 @@ describe('StreamingEngine', function() {
         video.play();
       });
 
-      var onEnded = function() {
+      let onEnded = function() {
         // Some browsers may not end at exactly 60 seconds.
         expect(Math.round(video.currentTime)).toBe(60);
         done();
@@ -364,7 +343,7 @@ describe('StreamingEngine', function() {
     });
 
     it('plays at high playback rates', function(done) {
-      var startupComplete = false;
+      let startupComplete = false;
 
       onStartupComplete.and.callFake(function() {
         startupComplete = true;
@@ -378,7 +357,7 @@ describe('StreamingEngine', function() {
         }
       });
 
-      var onEnded = function() {
+      let onEnded = function() {
         // Some browsers may not end at exactly 60 seconds.
         expect(Math.round(video.currentTime)).toBe(60);
         done();
@@ -399,7 +378,7 @@ describe('StreamingEngine', function() {
       });
 
       // After 35 seconds seek back 10 seconds into the first Period.
-      var onTimeUpdate = function() {
+      let onTimeUpdate = function() {
         if (video.currentTime >= 35) {
           eventManager.unlisten(video, 'timeupdate');
           video.currentTime = 25;
@@ -407,7 +386,7 @@ describe('StreamingEngine', function() {
       };
       eventManager.listen(video, 'timeupdate', onTimeUpdate);
 
-      var onEnded = function() {
+      let onEnded = function() {
         // Some browsers may not end at exactly 60 seconds.
         expect(Math.round(video.currentTime)).toBe(60);
         done();
@@ -428,7 +407,7 @@ describe('StreamingEngine', function() {
       });
 
       // After 20 seconds seek 10 seconds into the second Period.
-      var onTimeUpdate = function() {
+      let onTimeUpdate = function() {
         if (video.currentTime >= 20) {
           eventManager.unlisten(video, 'timeupdate');
           video.currentTime = 40;
@@ -436,7 +415,7 @@ describe('StreamingEngine', function() {
       };
       eventManager.listen(video, 'timeupdate', onTimeUpdate);
 
-      var onEnded = function() {
+      let onEnded = function() {
         // Some browsers may not end at exactly 60 seconds.
         expect(Math.round(video.currentTime)).toBe(60);
         done();
@@ -453,7 +432,7 @@ describe('StreamingEngine', function() {
   });
 
   describe('Live', function() {
-    var slideSegmentAvailabilityWindow;
+    let slideSegmentAvailabilityWindow;
 
     beforeEach(function(done) {
       setupLive().then(function() {
@@ -473,13 +452,13 @@ describe('StreamingEngine', function() {
         // firstSegmentNumber =
         //   [(segmentAvailabilityEnd - rebufferingGoal) / segmentDuration] + 1
         // Then -1 to account for drift safe buffering.
-        var segmentType = shaka.net.NetworkingEngine.RequestType.SEGMENT;
+        const segmentType = shaka.net.NetworkingEngine.RequestType.SEGMENT;
         netEngine.expectRequest('1_video_28', segmentType);
         netEngine.expectRequest('1_audio_28', segmentType);
         video.play();
       });
 
-      var onTimeUpdate = function() {
+      let onTimeUpdate = function() {
         if (video.currentTime >= 305) {
           // We've played through the Period transition!
           eventManager.unlisten(video, 'timeupdate');
@@ -511,7 +490,7 @@ describe('StreamingEngine', function() {
               // Wait until the repositioning is complete so we don't
               // immediately hit this case.
               setTimeout(function() {
-                var onTimeUpdate = function() {
+                let onTimeUpdate = function() {
                   if (video.currentTime >= 305) {
                     // We've played through the Period transition!
                     eventManager.unlisten(video, 'timeupdate');
@@ -545,12 +524,12 @@ describe('StreamingEngine', function() {
         }, 50);
       });
 
-      var seekCount = 0;
+      let seekCount = 0;
       eventManager.listen(video, 'seeking', function() {
         seekCount++;
       });
 
-      var onTimeUpdate = function() {
+      let onTimeUpdate = function() {
         if (video.currentTime >= 305) {
           // We've played through the Period transition!
           eventManager.unlisten(video, 'timeupdate');
@@ -711,14 +690,15 @@ describe('StreamingEngine', function() {
                 0 /* segmentAvailabilityStart */,
                 30 /* segmentAvailabilityEnd */,
                 30 /* presentationDuration */,
+                metadata.video.segmentDuration /* maxSegmentDuration */,
                 false /* isLive */);
 
         setupNetworkingEngine(
             0 /* firstPeriodStartTime */,
             30 /* secondPeriodStartTime */,
             30 /* presentationDuration */,
-            { audio: metadata.audio.segmentDuration,
-              video: metadata.video.segmentDuration });
+            {audio: metadata.audio.segmentDuration,
+              video: metadata.video.segmentDuration});
 
         manifest = setupGappyManifest(gapAtStart, dropSegment);
         variant1 = manifest.periods[0].variants[0];
@@ -740,18 +720,19 @@ describe('StreamingEngine', function() {
        * @return {!shaka.media.SegmentIndex}
        */
       function createIndex(type) {
-        var d = metadata[type].segmentDuration;
-        var refs = [];
-        var i = 1;
-        var time = gapAtStart;
+        let d = metadata[type].segmentDuration;
+        let refs = [];
+        let i = 1;
+        let time = gapAtStart;
         while (time < 30) {
-          var end = time + d;
+          let end = time + d;
           // Make segment 1 longer to make the manifest continuous, despite the
           // dropped segment.
-          if (i == 1 && dropSegment)
+          if (i == 1 && dropSegment) {
             end += d;
+          }
 
-          var getUris = (function(i) {
+          let getUris = (function(i) {
             // The times in the media are based on the URL; so to drop a
             // segment, we change the URL.
             if (i >= 2 && dropSegment) i++;
@@ -767,14 +748,14 @@ describe('StreamingEngine', function() {
       }
 
       function createInit(type) {
-        var getUris = function() {
+        let getUris = function() {
           return ['1_' + type + '_init'];
         };
         return new shaka.media.InitSegmentReference(getUris, 0, null);
       }
 
-      var videoIndex = createIndex('video');
-      var audioIndex = createIndex('audio');
+      let videoIndex = createIndex('video');
+      let audioIndex = createIndex('audio');
       return {
         presentationTimeline: timeline,
         offlineSessionIds: [],
@@ -822,15 +803,15 @@ describe('StreamingEngine', function() {
      * @return {!Promise}
      */
     function waitForTime(time) {
-      var p = new shaka.util.PublicPromise();
-      var onTimeUpdate = function() {
+      let p = new shaka.util.PublicPromise();
+      let onTimeUpdate = function() {
         if (video.currentTime >= time) {
           p.resolve();
         }
       };
       eventManager.listen(video, 'timeupdate', onTimeUpdate);
-      var timeout = shaka.test.Util.delay(30).then(function() {
-        throw 'Timeout waiting for time';
+      let timeout = shaka.test.Util.delay(30).then(function() {
+        throw new Error('Timeout waiting for time');
       });
       return Promise.race([p, timeout]);
     }
@@ -844,9 +825,9 @@ describe('StreamingEngine', function() {
    */
   function defaultOnChooseStreams(period) {
     if (period == manifest.periods[0]) {
-      return { variant: variant1, text: null };
+      return {variant: variant1, text: null};
     } else if (period == manifest.periods[1]) {
-      return { variant: variant2, text: null };
+      return {variant: variant2, text: null};
     } else {
       throw new Error();
     }

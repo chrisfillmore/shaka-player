@@ -22,17 +22,18 @@
  * @return {?string|boolean}
  */
 function getClientArg(name) {
-  if (window.__karma__ && __karma__.config.args.length)
+  if (window.__karma__ && __karma__.config.args.length) {
     return __karma__.config.args[0][name] || null;
-  else
+  } else {
     return null;
+  }
 }
 
 
 // Executed before test utilities and tests are loaded, but after Shaka Player
 // is loaded in uncompiled mode.
 (function() {
-  var realAssert = console.assert.bind(console);
+  let realAssert = console.assert.bind(console);
 
   /**
    * A version of assert() which hooks into jasmine and converts all failed
@@ -43,7 +44,7 @@ function getClientArg(name) {
   function jasmineAssert(condition, opt_message) {
     realAssert(condition, opt_message);
     if (!condition) {
-      var message = opt_message || 'Assertion failed.';
+      let message = opt_message || 'Assertion failed.';
       console.error(message);
       try {
         throw new Error(message);
@@ -55,8 +56,23 @@ function getClientArg(name) {
   goog.asserts.assert = jasmineAssert;
   console.assert = /** @type {?} */(jasmineAssert);
 
+  // As of Feb 2018, this is only implemented in Chrome.
+  // https://developer.mozilla.org/en-US/docs/Web/Events/unhandledrejection
+  window.addEventListener('unhandledrejection', (event) => {
+    /** @type {?} */
+    const error = event.reason;
+    let message = 'Unhandled rejection in Promise: ' + error;
+
+    // Shaka errors have the stack trace in their toString() already, so don't
+    // add it again.  For native errors, we need to see where it came from.
+    if (error && error.stack && !(error instanceof shaka.util.Error)) {
+      message += '\n' + error.stack;
+    }
+    fail(message);
+  });
+
   // Use a RegExp if --specFilter is set, else empty string will match all.
-  var specFilterRegExp = new RegExp(getClientArg('specFilter') || '');
+  let specFilterRegExp = new RegExp(getClientArg('specFilter') || '');
 
   /**
    * A filter over all Jasmine specs.
@@ -89,7 +105,7 @@ function getClientArg(name) {
   // Set the default timeout to 120s for all asynchronous tests.
   jasmine.DEFAULT_TIMEOUT_INTERVAL = 120 * 1000;
 
-  var logLevel = getClientArg('logLevel');
+  let logLevel = getClientArg('logLevel');
   if (logLevel) {
     shaka.log.setLevel(Number(logLevel));
   } else {
@@ -100,7 +116,7 @@ function getClientArg(name) {
   if (getClientArg('random')) {
     jasmine.getEnv().randomizeTests(true);
 
-    var seed = getClientArg('seed');
+    let seed = getClientArg('seed');
     if (seed) {
       jasmine.getEnv().seed(seed.toString());
     }
@@ -171,4 +187,49 @@ function getClientArg(name) {
     it(name, filterShim(callback, 'quarantined',
         'Skipping tests that are quarantined.'));
   };
+
+  beforeAll((done) => {
+    // Configure AMD modules and their dependencies.
+    require.config({
+      baseUrl: '/base/node_modules',
+      packages: [
+        {
+          name: 'promise-mock',
+          main: 'lib/index',
+        },
+        {
+          name: 'promise-polyfill',  // Used by promise-mock.
+          main: 'lib/index',
+        },
+        {
+          name: 'sprintf-js',
+          main: 'src/sprintf',
+        },
+      ],
+    });
+
+    // Load required AMD modules, then proceed with tests.
+    require(['promise-mock', 'sprintf-js'], (PromiseMock, sprintfJs) => {
+      window.PromiseMock = PromiseMock;
+      window.sprintf = sprintfJs.sprintf;
+
+      // Patch a new convenience method into PromiseMock.
+      // See https://github.com/taylorhakes/promise-mock/issues/7
+      PromiseMock.flush = () => {
+        // Pass strict == false so it does not throw.
+        PromiseMock.runAll(false /* strict */);
+      };
+
+      done();
+    });
+  });
+
+  const delayTests = getClientArg('delayTests');
+  if (delayTests) {
+    const originalSetTimeout = window.setTimeout;
+    afterEach((done) => {
+      console.log('DELAYING...');
+      originalSetTimeout(done, delayTests * 1000);
+    });
+  }
 })();

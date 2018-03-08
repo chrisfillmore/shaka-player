@@ -29,6 +29,11 @@ def main(args):
                   ' Player Project.')
 
   parser.add_argument(
+      '--fix',
+      help='Automatically fix style violations.',
+      action='store_true')
+
+  parser.add_argument(
       '--force',
       '-f',
       help='Force building the library even if no files have changed.',
@@ -52,7 +57,8 @@ def main(args):
   if code != 0:
     return code
 
-  code = check.main([])
+  check_args = ['--fix'] if parsed_args.fix else []
+  code = check.main(check_args)
   if code != 0:
     return code
 
@@ -64,17 +70,17 @@ def main(args):
   # Create the list of build modes to build with. If the list is empty
   # by the end, then populate it with every mode.
   modes = []
-  modes += ['--debug'] if parsed_args.debug else []
-  modes += ['--release'] if parsed_args.release else []
+  modes += ['debug'] if parsed_args.debug else []
+  modes += ['release'] if parsed_args.release else []
 
   # If --debug or --release are not given, build with everything.
   if not modes:
-    modes += ['--debug', '--release']
+    modes += ['debug', 'release']
 
   result = 0
 
   for mode in modes:
-    result = build.main(build_args + [mode])
+    result = build.main(build_args + ['--mode', mode])
 
     # If a build fails then there is no reason to build the other modes.
     if result:

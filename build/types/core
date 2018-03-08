@@ -9,6 +9,7 @@
 +../../lib/debug/log.js
 
 +../../lib/media/drm_engine.js
++../../lib/media/gap_jumping_controller.js
 +../../lib/media/manifest_parser.js
 +../../lib/media/media_source_engine.js
 +../../lib/media/mp4_segment_index_parser.js
@@ -20,6 +21,7 @@
 +../../lib/media/streaming_engine.js
 +../../lib/media/time_ranges_utils.js
 +../../lib/media/transmuxer.js
++../../lib/media/video_wrapper.js
 +../../lib/media/webm_segment_index_parser.js
 
 +../../lib/net/backoff.js
@@ -33,6 +35,7 @@
 +../../lib/text/simple_text_displayer.js
 +../../lib/text/text_engine.js
 
++../../lib/util/abortable_operation.js
 +../../lib/util/array_utils.js
 +../../lib/util/data_view_reader.js
 +../../lib/util/cancelable_chain.js
@@ -50,6 +53,7 @@
 +../../lib/util/mime_utils.js
 +../../lib/util/mp4_parser.js
 +../../lib/util/multi_map.js
++../../lib/util/operation_manager.js
 +../../lib/util/pssh.js
 +../../lib/util/public_promise.js
 +../../lib/util/stream_utils.js

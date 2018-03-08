@@ -48,32 +48,45 @@ shaka.test.MemoryStorageEngine.prototype.destroy = function() {
 
 /** @override */
 shaka.test.MemoryStorageEngine.prototype.getManifest = function(key) {
-  var manifest = this.manifests_[key];
+  let manifest = this.manifests_[key];
   return Promise.resolve(manifest);
 };
 
 
 /** @override */
 shaka.test.MemoryStorageEngine.prototype.forEachManifest = function(each) {
-  shaka.util.MapUtils.forEach(this.manifests_, function(key, value) {
-    return each(value);
-  });
+  shaka.util.MapUtils.forEach(this.manifests_, each);
   return Promise.resolve();
 };
 
 
 /** @override */
-shaka.test.MemoryStorageEngine.prototype.insertManifest =
-    function(manifest) {
-  this.manifests_[manifest.key] = manifest;
-  return Promise.resolve();
+shaka.test.MemoryStorageEngine.prototype.addManifest = function(manifest) {
+  /** @type {number} */
+  let key = this.nextManifestId_++;
+
+  this.manifests_[key] = manifest;
+  return Promise.resolve(key);
+};
+
+
+/** @override */
+shaka.test.MemoryStorageEngine.prototype.updateManifest = function(
+    key, manifest) {
+
+  if (this.manifests_[key]) {
+    this.manifests_[key] = manifest;
+    return Promise.resolve(key);
+  } else {
+    return Promise.reject();
+  }
 };
 
 
 /** @override */
 shaka.test.MemoryStorageEngine.prototype.removeManifests =
     function(keys, opt_onRemoveKey) {
-  var noop = function(key) { };
+  let noop = function(key) { };
 
   shaka.test.MemoryStorageEngine.removeKeys_(
       this.manifests_, keys, opt_onRemoveKey || noop);
@@ -83,49 +96,47 @@ shaka.test.MemoryStorageEngine.prototype.removeManifests =
 
 
 /** @override */
-shaka.test.MemoryStorageEngine.prototype.reserveManifestId = function() {
-  return this.nextManifestId_++;
-};
-
-
-/** @override */
 shaka.test.MemoryStorageEngine.prototype.getSegment = function(key) {
-  var segment = this.segments_[key];
+  let segment = this.segments_[key];
   return Promise.resolve(segment);
 };
 
 
 /** @override */
 shaka.test.MemoryStorageEngine.prototype.forEachSegment = function(each) {
-  shaka.util.MapUtils.forEach(this.segments_, function(key, value) {
-    return each(value);
-  });
+  shaka.util.MapUtils.forEach(this.segments_, each);
   return Promise.resolve();
 };
 
 
 /** @override */
-shaka.test.MemoryStorageEngine.prototype.insertSegment = function(segment) {
-  this.segments_[segment.key] = segment;
-  return Promise.resolve();
+shaka.test.MemoryStorageEngine.prototype.addSegment = function(segment) {
+  // Clone the segment, so the caller can wipe its version.
+  let clonedData = new ArrayBuffer(segment.data.byteLength);
+  (new Uint8Array(clonedData)).set(new Uint8Array(segment.data));
+
+  /** @type {shakaExtern.SegmentDataDB} */
+  let clonedSegment = {
+    data: clonedData
+  };
+
+  /** @type {number} */
+  let key = this.nextSegmentId_++;
+  this.segments_[key] = clonedSegment;
+
+  return Promise.resolve(key);
 };
 
 
 /** @override */
 shaka.test.MemoryStorageEngine.prototype.removeSegments =
     function(keys, opt_onRemoveKey) {
-  var noop = function(key) { };
+  let noop = function(key) { };
 
   shaka.test.MemoryStorageEngine.removeKeys_(
       this.segments_, keys, opt_onRemoveKey || noop);
 
   return Promise.resolve();
-};
-
-
-/** @override */
-shaka.test.MemoryStorageEngine.prototype.reserveSegmentId = function() {
-  return this.nextSegmentId_++;
 };
 
 

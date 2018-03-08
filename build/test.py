@@ -78,16 +78,16 @@ class Launcher:
      that other scripts can inject their own logic between calls.
 
      For example:
-       l = Launcher('Launch Karma tests', ['Chrome'])
+       l = Launcher('Launch Karma tests')
        l.parser.add_argument('custom_flag')
        l.ParseArguments(args)
+       l.ResolveBrowsers(['Chrome'])
        if l.parsed_args.custom_flag:
          do_custom_logic
       l.RunCommand(karma_conf_path)
   """
 
-  def __init__(self, description, default_browsers):
-    self.default_browsers = default_browsers
+  def __init__(self, description):
     self.karma_config = {}
     self.parsed_args = None
     self.parser = argparse.ArgumentParser(
@@ -106,6 +106,7 @@ class Launcher:
     pre_launch_commands = self.parser.add_argument_group(
         'Pre-Launch',
         'These commands are handled before the tests start running.')
+
 
     running_commands.add_argument(
         '--browsers',
@@ -202,6 +203,19 @@ class Launcher:
              'This defaults to one minute.',
         type=int,
         default=60000)
+    running_commands.add_argument(
+        '--delay-tests',
+        help='Insert an artifical delay between tests [s]. '
+             'This can be helpful when tracking down asynchronous test '
+             'pollution, in which an async process belonging to one test may '
+             'trigger a failure after other tests have begun. '
+             'If no delay is specified, defaults to 2 seconds.',
+        type=int,
+        default=None,
+        const=2,
+        nargs='?')
+
+
     logging_commands.add_argument(
         '--colors',
         help='Use colors when reporting and printing logs.',
@@ -244,6 +258,8 @@ class Launcher:
         '--report-slower-than',
         help='Report tests that are slower than the given time [ms].',
         type=int)
+
+
     networking_commands.add_argument(
        '--port',
         help='Port where the server is running.',
@@ -253,6 +269,8 @@ class Launcher:
         help='Specify the hostname to be used when capturing browsers. This '
              'defaults to localhost.',
         default='localhost')
+
+
     pre_launch_commands.add_argument(
         '--force',
         help='Force a rebuild of the project before running tests. This will '
@@ -299,6 +317,7 @@ class Launcher:
       'seed',
       'single_run',
       'uncompiled',
+      'delay_tests',
     ]
 
     # Check each value before setting it to avoid passing null values.
@@ -310,13 +329,21 @@ class Launcher:
     if self.parsed_args.reporters:
       self.karma_config['reporters'] = self.parsed_args.reporters
 
+  def ResolveBrowsers(self, default_browsers):
+    """Decide what browsers we should use.
+
+       This is separate from ParseArguments so that other tools can insert
+       additional logic to derive a browser list from the parsed arguments.
+    """
+    assert(default_browsers and len(default_browsers))
+
     if self.parsed_args.no_browsers:
       logging.warning('In this mode browsers must manually connect to karma.')
     elif self.parsed_args.browsers:
       self.karma_config['browsers'] = self.parsed_args.browsers
     else:
-      logging.warning('Using default browsers: %s', self.default_browsers)
-      self.karma_config['browsers'] = self.default_browsers
+      logging.warning('Using default browsers: %s', default_browsers)
+      self.karma_config['browsers'] = default_browsers
 
     # Check if there are any browsers that we should remove
     if self.parsed_args.exclude_browsers and 'browsers' in self.karma_config:
@@ -324,7 +351,6 @@ class Launcher:
       bad_browsers = set(self.parsed_args.exclude_browsers)
       good_browsers = all_browsers - bad_browsers
       self.karma_config['browsers'] = list(good_browsers)
-
 
   def RunCommand(self, karma_conf):
     """Build a command and send it to Karma for execution.
@@ -340,9 +366,9 @@ class Launcher:
       logging.error('Failed to update node modules')
       return 1
 
-    karma = shakaBuildHelpers.get_node_binary_path('karma')
+    karma = shakaBuildHelpers.get_node_binary('karma')
     cmd = ['xvfb-run', '--auto-servernum'] if self.parsed_args.use_xvfb else []
-    cmd += [karma, 'start']
+    cmd += karma + ['start']
     cmd += [karma_conf] if karma_conf else []
     cmd += ['--settings', json.dumps(self.karma_config)]
 
@@ -382,8 +408,9 @@ class Launcher:
 
 
 def Run(args):
-  launcher = Launcher('Shaka Player Test Runner Script', _GetDefaultBrowsers())
+  launcher = Launcher('Shaka Player Test Runner Script')
   launcher.ParseArguments(args)
+  launcher.ResolveBrowsers(_GetDefaultBrowsers())
   return launcher.RunCommand(None)
 
 

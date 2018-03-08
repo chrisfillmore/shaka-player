@@ -16,11 +16,10 @@
  */
 
 describe('PresentationTimeline', function() {
-  /** @const */
-  var originalDateNow = Date.now;
+  const originalDateNow = Date.now;
 
   /** @type {!Date} */
-  var baseTime;
+  let baseTime;
 
   beforeEach(function() {
     baseTime = new Date(2015, 11, 30);
@@ -58,7 +57,7 @@ describe('PresentationTimeline', function() {
       maxSegmentDuration,
       clockOffset,
       presentationDelay) {
-    var timeline = new shaka.media.PresentationTimeline(
+    let timeline = new shaka.media.PresentationTimeline(
         presentationStartTime, presentationDelay);
     timeline.setStatic(isStatic);
     timeline.setDuration(duration || Infinity);
@@ -76,7 +75,7 @@ describe('PresentationTimeline', function() {
    * @return {shaka.media.PresentationTimeline}
    */
   function makeVodTimeline(duration) {
-    var timeline = makePresentationTimeline(
+    let timeline = makePresentationTimeline(
         /* static */ true, duration, /* start time */ null,
         /* availability */ Infinity, /* max seg dur */ 10,
         /* clock offset */ 0, /* presentation delay */ 0);
@@ -93,8 +92,8 @@ describe('PresentationTimeline', function() {
    * @return {shaka.media.PresentationTimeline}
    */
   function makeIprTimeline(duration, opt_delay) {
-    var now = Date.now() / 1000;
-    var timeline = makePresentationTimeline(
+    let now = Date.now() / 1000;
+    let timeline = makePresentationTimeline(
         /* static */ false, duration, /* start time */ now,
         /* availability */ Infinity, /* max seg dur */ 10,
         /* clock offset */ 0, opt_delay || 0);
@@ -111,8 +110,8 @@ describe('PresentationTimeline', function() {
    * @return {shaka.media.PresentationTimeline}
    */
   function makeLiveTimeline(availability, opt_delay) {
-    var now = Date.now() / 1000;
-    var timeline = makePresentationTimeline(
+    let now = Date.now() / 1000;
+    let timeline = makePresentationTimeline(
         /* static */ false, /* duration */ Infinity, /* start time */ now,
         availability, /* max seg dur */ 10,
         /* clock offset */ 0, opt_delay || 0);
@@ -123,8 +122,8 @@ describe('PresentationTimeline', function() {
 
   describe('getSegmentAvailabilityStart', function() {
     it('returns 0 for VOD and IPR', function() {
-      var timeline1 = makeVodTimeline(/* duration */ 60);
-      var timeline2 = makeIprTimeline(/* duration */ 60);
+      let timeline1 = makeVodTimeline(/* duration */ 60);
+      let timeline2 = makeIprTimeline(/* duration */ 60);
 
       setElapsed(0);
       expect(timeline1.getSegmentAvailabilityStart()).toBe(0);
@@ -136,7 +135,7 @@ describe('PresentationTimeline', function() {
     });
 
     it('calculates time for live with finite availability', function() {
-      var timeline = makeLiveTimeline(/* availability */ 20);
+      let timeline = makeLiveTimeline(/* availability */ 20);
 
       setElapsed(0);
       expect(timeline.getSegmentAvailabilityStart()).toBe(0);
@@ -161,7 +160,7 @@ describe('PresentationTimeline', function() {
     });
 
     it('calculates time for live with infinite availability', function() {
-      var timeline = makeLiveTimeline(/* availability */ Infinity);
+      let timeline = makeLiveTimeline(/* availability */ Infinity);
 
       setElapsed(0);
       expect(timeline.getSegmentAvailabilityStart()).toBe(0);
@@ -179,7 +178,7 @@ describe('PresentationTimeline', function() {
 
   describe('getSegmentAvailabilityEnd', function() {
     it('returns duration for VOD', function() {
-      var timeline = makeVodTimeline(/* duration */ 60);
+      let timeline = makeVodTimeline(/* duration */ 60);
 
       setElapsed(0);
       expect(timeline.getSegmentAvailabilityEnd()).toBe(60);
@@ -189,7 +188,7 @@ describe('PresentationTimeline', function() {
     });
 
     it('calculates time for IPR', function() {
-      var timeline = makeIprTimeline(/* duration */ 60);
+      let timeline = makeIprTimeline(/* duration */ 60);
 
       setElapsed(0);
       expect(timeline.getSegmentAvailabilityEnd()).toBe(0);
@@ -211,8 +210,8 @@ describe('PresentationTimeline', function() {
     });
 
     it('calculates time for live', function() {
-      var timeline1 = makeLiveTimeline(/* availability */ 20);
-      var timeline2 = makeLiveTimeline(/* availability */ Infinity);
+      let timeline1 = makeLiveTimeline(/* availability */ 20);
+      let timeline2 = makeLiveTimeline(/* availability */ Infinity);
 
       setElapsed(0);
       expect(timeline1.getSegmentAvailabilityEnd()).toBe(0);
@@ -243,10 +242,10 @@ describe('PresentationTimeline', function() {
   describe('getDuration', function() {
     it('returns the timeline duration', function() {
       setElapsed(0);
-      var timeline1 = makeVodTimeline(/* duration */ 60);
-      var timeline2 = makeIprTimeline(/* duration */ 60);
-      var timeline3 = makeLiveTimeline(/* availability */ 20);
-      var timeline4 = makeLiveTimeline(/* availability */ Infinity);
+      let timeline1 = makeVodTimeline(/* duration */ 60);
+      let timeline2 = makeIprTimeline(/* duration */ 60);
+      let timeline3 = makeLiveTimeline(/* availability */ 20);
+      let timeline4 = makeLiveTimeline(/* availability */ Infinity);
       expect(timeline1.getDuration()).toBe(60);
       expect(timeline2.getDuration()).toBe(60);
       expect(timeline3.getDuration()).toBe(Infinity);
@@ -257,7 +256,7 @@ describe('PresentationTimeline', function() {
   describe('setDuration', function() {
     it('affects availability end for VOD', function() {
       setElapsed(0);
-      var timeline = makeVodTimeline(/* duration */ 60);
+      let timeline = makeVodTimeline(/* duration */ 60);
       expect(timeline.getSegmentAvailabilityEnd()).toBe(60);
 
       timeline.setDuration(90);
@@ -265,7 +264,7 @@ describe('PresentationTimeline', function() {
     });
 
     it('affects availability end for IPR', function() {
-      var timeline = makeIprTimeline(/* duration */ 60);
+      let timeline = makeIprTimeline(/* duration */ 60);
 
       setElapsed(85);
       expect(timeline.getSegmentAvailabilityEnd()).toBe(60);
@@ -275,40 +274,9 @@ describe('PresentationTimeline', function() {
     });
   });
 
-  describe('getSegmentAvailabilityDuration', function() {
-    it('returns the availability duration', function() {
-      setElapsed(0);
-      var timeline1 = makeVodTimeline(/* duration */ 60);
-      var timeline2 = makeIprTimeline(/* duration */ 60);
-      var timeline3 = makeLiveTimeline(/* availability */ 20);
-      var timeline4 = makeLiveTimeline(/* availability */ Infinity);
-      expect(timeline1.getSegmentAvailabilityDuration()).toBe(Infinity);
-      expect(timeline2.getSegmentAvailabilityDuration()).toBe(Infinity);
-      expect(timeline3.getSegmentAvailabilityDuration()).toBe(20);
-      expect(timeline4.getSegmentAvailabilityDuration()).toBe(Infinity);
-    });
-  });
-
-  describe('setSegmentAvailabilityDuration', function() {
-    it('alters the availability duration', function() {
-      setElapsed(0);
-      var timeline = makeLiveTimeline(/* availability */ Infinity);
-      expect(timeline.getSegmentAvailabilityDuration()).toBe(Infinity);
-
-      timeline.setSegmentAvailabilityDuration(7);
-      expect(timeline.getSegmentAvailabilityDuration()).toBe(7);
-
-      timeline.setSegmentAvailabilityDuration(Infinity);
-      expect(timeline.getSegmentAvailabilityDuration()).toBe(Infinity);
-
-      timeline.setSegmentAvailabilityDuration(20);
-      expect(timeline.getSegmentAvailabilityDuration()).toBe(20);
-    });
-  });
-
   describe('clockOffset', function() {
     it('offsets availability calculations', function() {
-      var timeline = makeLiveTimeline(/* availability */ 10);
+      let timeline = makeLiveTimeline(/* availability */ 10);
       setElapsed(11);
       expect(timeline.getSegmentAvailabilityEnd()).toBe(1);
 
@@ -317,10 +285,44 @@ describe('PresentationTimeline', function() {
     });
   });
 
+  describe('getSeekRangeStart', function() {
+    it('accounts for available segments', function() {
+      let timeline = makeLiveTimeline(/* availability */ 60, /* delay */ 0);
+
+      setElapsed(120);
+      // now (120) - availability (60) - segment size (10) = 50
+      expect(timeline.getSeekRangeStart()).toBe(50);
+
+      let ref = new shaka.media.SegmentReference(
+          /* position */ 0,
+          /* startTime */ 30,
+          /* endTime */ 40,
+          /* uris */ function() { return []; },
+          /* startByte */ 0,
+          /* endByte */ null);
+      timeline.notifySegments([ref], true);
+      // The earliest segment time is earlier than now - availability duration,
+      // so the seek range is not based on the segment list.
+      expect(timeline.getSeekRangeStart()).toBe(50);
+
+      ref = new shaka.media.SegmentReference(
+          /* position */ 0,
+          /* startTime */ 90,
+          /* endTime */ 100,
+          /* uris */ function() { return []; },
+          /* startByte */ 0,
+          /* endByte */ null);
+      timeline.notifySegments([ref], true);
+      // The earliest segment time is later than now - availability duration,
+      // so segment time 90 takes precedence.
+      expect(timeline.getSeekRangeStart()).toBe(90);
+    });
+  });
+
   describe('getSeekRangeEnd', function() {
     it('accounts for delay for live and IPR', function() {
-      var timeline1 = makeIprTimeline(/* duration */ 60, /* delay */ 7);
-      var timeline2 = makeLiveTimeline(/* duration */ 60, /* delay */ 7);
+      let timeline1 = makeIprTimeline(/* duration */ 60, /* delay */ 7);
+      let timeline2 = makeLiveTimeline(/* duration */ 60, /* delay */ 7);
 
       setElapsed(11);
       expect(timeline1.getSeekRangeEnd()).toBe(0);

@@ -16,24 +16,20 @@
  */
 
 describe('Mp4TtmlParser', function() {
-  /** @const */
-  var ttmlInitSegmentUri = '/base/test/test/assets/ttml-init.mp4';
-  /** @const */
-  var ttmlSegmentUri = '/base/test/test/assets/ttml-segment.mp4';
-  /** @const */
-  var ttmlSegmentMultipleMDATUri =
+  const ttmlInitSegmentUri = '/base/test/test/assets/ttml-init.mp4';
+  const ttmlSegmentUri = '/base/test/test/assets/ttml-segment.mp4';
+  const ttmlSegmentMultipleMDATUri =
       '/base/test/test/assets/ttml-segment-multiplemdat.mp4';
-  /** @const */
-  var audioInitSegmentUri = '/base/test/test/assets/sintel-audio-init.mp4';
+  const audioInitSegmentUri = '/base/test/test/assets/sintel-audio-init.mp4';
 
-  /** @type {!ArrayBuffer} */
-  var ttmlInitSegment;
   /** @type {!Uint8Array} */
-  var ttmlSegment;
+  let ttmlInitSegment;
   /** @type {!Uint8Array} */
-  var ttmlSegmentMultipleMDAT;
-  /** @type {!ArrayBuffer} */
-  var audioInitSegment;
+  let ttmlSegment;
+  /** @type {!Uint8Array} */
+  let ttmlSegmentMultipleMDAT;
+  /** @type {!Uint8Array} */
+  let audioInitSegment;
 
   beforeAll(function(done) {
     Promise.all([
@@ -42,10 +38,10 @@ describe('Mp4TtmlParser', function() {
       shaka.test.Util.fetch(ttmlSegmentMultipleMDATUri),
       shaka.test.Util.fetch(audioInitSegmentUri)
     ]).then(function(responses) {
-      ttmlInitSegment = responses[0];
+      ttmlInitSegment = new Uint8Array(responses[0]);
       ttmlSegment = new Uint8Array(responses[1]);
       ttmlSegmentMultipleMDAT = new Uint8Array(responses[2]);
-      audioInitSegment = responses[3];
+      audioInitSegment = new Uint8Array(responses[3]);
     }).catch(fail).then(done);
   });
 
@@ -54,32 +50,32 @@ describe('Mp4TtmlParser', function() {
   });
 
   it('parses media segment', function() {
-    var parser = new shaka.text.Mp4TtmlParser();
+    let parser = new shaka.text.Mp4TtmlParser();
     parser.parseInit(ttmlInitSegment);
-    var time = {periodStart: 0, segmentStart: 0, segmentEnd: 0 };
-    var ret = parser.parseMedia(ttmlSegment, time);
+    let time = {periodStart: 0, segmentStart: 0, segmentEnd: 0};
+    let ret = parser.parseMedia(ttmlSegment, time);
     expect(ret.length).toBe(10);
   });
 
   it('handles media segments with multiple mdats', function() {
-    var parser = new shaka.text.Mp4TtmlParser();
+    let parser = new shaka.text.Mp4TtmlParser();
     parser.parseInit(ttmlInitSegment);
-    var time = {periodStart: 0, segmentStart: 0, segmentEnd: 0 };
-    var ret = parser.parseMedia(ttmlSegmentMultipleMDAT, time);
+    let time = {periodStart: 0, segmentStart: 0, segmentEnd: 0};
+    let ret = parser.parseMedia(ttmlSegmentMultipleMDAT, time);
     expect(ret.length).toBe(20);
   });
 
   it('accounts for offset', function() {
-    var time1 = {periodStart: 0, segmentStart: 0, segmentEnd: 0 };
-    var time2 = {periodStart: 7, segmentStart: 0, segmentEnd: 0 };
+    let time1 = {periodStart: 0, segmentStart: 0, segmentEnd: 0};
+    let time2 = {periodStart: 7, segmentStart: 0, segmentEnd: 0};
 
-    var parser = new shaka.text.Mp4TtmlParser();
+    let parser = new shaka.text.Mp4TtmlParser();
     parser.parseInit(ttmlInitSegment);
 
-    var ret1 = parser.parseMedia(ttmlSegment, time1);
+    let ret1 = parser.parseMedia(ttmlSegment, time1);
     expect(ret1.length).toBeGreaterThan(0);
 
-    var ret2 = parser.parseMedia(ttmlSegment, time2);
+    let ret2 = parser.parseMedia(ttmlSegment, time2);
     expect(ret2.length).toBeGreaterThan(0);
 
     expect(ret2[0].startTime).toEqual(ret1[0].startTime + 7);
@@ -87,7 +83,7 @@ describe('Mp4TtmlParser', function() {
   });
 
   it('rejects init segment with no ttml', function() {
-    var error = new shaka.util.Error(
+    let error = new shaka.util.Error(
         shaka.util.Error.Severity.CRITICAL,
         shaka.util.Error.Category.TEXT,
         shaka.util.Error.Code.INVALID_MP4_TTML);

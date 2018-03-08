@@ -24,7 +24,7 @@
 
 
 /** @suppress {duplicate} */
-var shakaDemo = shakaDemo || {};
+var shakaDemo = shakaDemo || {};  // eslint-disable-line no-var
 
 
 /** @private */
@@ -62,20 +62,20 @@ shakaDemo.onTracksChanged_ = function(event) {
  * @private
  */
 shakaDemo.updateVariantTracks_ = function() {
-  var trackList = document.getElementById('variantTracks');
-  var langList = document.getElementById('audioLanguages');
-  var language = langList.selectedIndex >= 0 ?
+  let trackList = document.getElementById('variantTracks');
+  let langList = document.getElementById('audioLanguages');
+  let languageAndRole = langList.selectedIndex >= 0 ?
       langList.options[langList.selectedIndex].value :
       '';
 
-  var tracks = shakaDemo.player_.getVariantTracks();
+  let tracks = shakaDemo.player_.getVariantTracks();
 
   tracks.sort(function(t1, t2) {
     // Sort by bandwidth.
     return t1.bandwidth - t2.bandwidth;
   });
 
-  shakaDemo.updateTrackOptions_(trackList, tracks, language);
+  shakaDemo.updateTrackOptions_(trackList, tracks, languageAndRole);
 };
 
 
@@ -83,39 +83,59 @@ shakaDemo.updateVariantTracks_ = function() {
  * @private
  */
 shakaDemo.updateTextTracks_ = function() {
-  var trackList = document.getElementById('textTracks');
+  let trackList = document.getElementById('textTracks');
 
-  var langList = document.getElementById('textLanguages');
-  var language = langList.selectedIndex >= 0 ?
+  let langList = document.getElementById('textLanguages');
+  let languageAndRole = langList.selectedIndex >= 0 ?
       langList.options[langList.selectedIndex].value :
       '';
 
-  var tracks = shakaDemo.player_.getTextTracks();
+  let tracks = shakaDemo.player_.getTextTracks();
 
-  shakaDemo.updateTrackOptions_(trackList, tracks, language);
+  shakaDemo.updateTrackOptions_(trackList, tracks, languageAndRole);
+
+  // CEA 608/708 captions data is embedded inside the video stream.
+  // Showing a 'Default Text' option in the Text Track list.
+  // Use Default Text Track if there's no external text tracks available.
+  if (tracks.length == 0) {
+    shakaDemo.player_.selectEmbeddedTextTrack();
+  }
+  if (ShakaDemoUtils.isTsContent(shakaDemo.player_)) {
+    let option = document.createElement('option');
+    option.textContent = 'Default Text';
+    option.selected = shakaDemo.player_.getUseEmbeddedTextTrack();
+    trackList.appendChild(option);
+  }
 };
 
 
 /**
  * @param {Element} list
  * @param {!Array.<!shakaExtern.Track>} tracks
- * @param {!string} language
+ * @param {!string} languageAndRole
  * @private
  */
-shakaDemo.updateTrackOptions_ = function(list, tracks, language) {
-  var formatters = {
+shakaDemo.updateTrackOptions_ = function(list, tracks, languageAndRole) {
+  let formatters = {
     variant: function(track) {
-      var trackInfo = '';
+      let trackInfo = '';
       if (track.language) trackInfo += 'language: ' + track.language + ', ';
       if (track.label) trackInfo += 'label: ' + track.label + ', ';
-      if (track.width && track.height)
+      if (track.roles.length) {
+        trackInfo += 'roles: [' + track.roles.join() + '], ';
+      }
+      if (track.width && track.height) {
         trackInfo += track.width + 'x' + track.height + ', ';
+      }
       trackInfo += track.bandwidth + ' bits/s';
       return trackInfo;
     } ,
     text: function(track) {
-      var trackInfo = 'language: ' + track.language + ', ';
+      let trackInfo = 'language: ' + track.language + ', ';
       if (track.label) trackInfo += 'label: ' + track.label + ', ';
+      if (track.roles.length) {
+        trackInfo += 'roles: [' + track.roles.join() + '], ';
+      }
       trackInfo += 'kind: ' + track.kind;
       return trackInfo;
     }
@@ -125,12 +145,19 @@ shakaDemo.updateTrackOptions_ = function(list, tracks, language) {
     list.removeChild(list.firstChild);
   }
 
+  // Split language and role
+  let res = languageAndRole.split(':');
+  let language = res[0];
+  let role = res[1] || '';
+
   tracks = tracks.filter(function(track) {
-    return track.language == language;
+    let langMatch = track.language == language;
+    let roleMatch = role == '' || track.roles.indexOf(role) > -1;
+    return langMatch && roleMatch;
   });
 
   tracks.forEach(function(track) {
-    var option = document.createElement('option');
+    let option = document.createElement('option');
     option.textContent = formatters[track.type](track);
     option.track = track;
     option.value = track.id;
@@ -154,12 +181,12 @@ shakaDemo.updateLanguages_ = function() {
  * @private
  */
 shakaDemo.updateTextLanguages_ = function() {
-  var player = shakaDemo.player_;
-  var list = document.getElementById('textLanguages');
-  var languages = player.getTextLanguages();
-  var tracks = player.getTextTracks();
+  let player = shakaDemo.player_;
+  let list = document.getElementById('textLanguages');
+  let languagesAndRoles = player.getTextLanguagesAndRoles();
+  let tracks = player.getTextTracks();
 
-  shakaDemo.updateLanguageOptions_(list, languages, tracks);
+  shakaDemo.updateLanguageOptions_(list, languagesAndRoles, tracks);
 };
 
 
@@ -168,23 +195,23 @@ shakaDemo.updateTextLanguages_ = function() {
  * @private
  */
 shakaDemo.updateAudioLanguages_ = function() {
-  var player = shakaDemo.player_;
-  var list = document.getElementById('audioLanguages');
-  var languages = player.getAudioLanguages();
-  var tracks = player.getVariantTracks();
+  let player = shakaDemo.player_;
+  let list = document.getElementById('audioLanguages');
+  let languagesAndRoles = player.getAudioLanguagesAndRoles();
+  let tracks = player.getVariantTracks();
 
-  shakaDemo.updateLanguageOptions_(list, languages, tracks);
+  shakaDemo.updateLanguageOptions_(list, languagesAndRoles, tracks);
 };
 
 
 /**
  * @param {Element} list
- * @param {!Array.<!string>} languages
+ * @param {!Array.<{language: string, role: string}>} languagesAndRoles
  * @param {!Array.<shakaExtern.Track>} tracks
  * @private
  */
 shakaDemo.updateLanguageOptions_ =
-    function(list, languages, tracks) {
+    function(list, languagesAndRoles, tracks) {
   // Remove old options
   while (list.firstChild) {
     list.removeChild(list.firstChild);
@@ -192,17 +219,39 @@ shakaDemo.updateLanguageOptions_ =
 
   // Using array.filter(f)[0] as an alternative to array.find(f) which is
   // not supported in IE11.
-  var activeTracks = tracks.filter(function(track) {
+  let activeTracks = tracks.filter(function(track) {
     return track.active == true;
   });
-  var selectedTrack = activeTracks[0];
+  let selectedTrack = activeTracks[0];
 
   // Populate list with new options.
-  languages.forEach(function(lang) {
-    var option = document.createElement('option');
-    option.textContent = lang;
-    option.value = lang;
-    option.selected = lang == selectedTrack.language;
+  languagesAndRoles.forEach(function(langAndRole) {
+    let language = langAndRole.language;
+    let role = langAndRole.role;
+
+    let label = language;
+    if (role) {
+      label += ' (role: ' + role + ')';
+    }
+
+    let option = document.createElement('option');
+    option.textContent = label;
+    option.value = language + ':' + role;
+    let isSelected = false;
+
+    if (selectedTrack.language == language) {
+      if (selectedTrack.roles.length) {
+        selectedTrack.roles.forEach(function(selectedRole) {
+          if (selectedRole == role) {
+            isSelected = true;
+          }
+        });
+      } else {
+        isSelected = true;
+      }
+    }
+
+    option.selected = isSelected;
     list.appendChild(option);
   });
 };
@@ -213,16 +262,16 @@ shakaDemo.updateLanguageOptions_ =
  * @private
  */
 shakaDemo.onAdaptation_ = function(event) {
-  var list = document.getElementById('variantTracks');
+  let list = document.getElementById('variantTracks');
 
   // Find the row for the active track and select it.
-  var tracks = shakaDemo.player_.getVariantTracks();
+  let tracks = shakaDemo.player_.getVariantTracks();
 
   tracks.forEach(function(track) {
     if (!track.active) return;
 
-    for (var i = 0; i < list.options.length; ++i) {
-      var option = list.options[i];
+    for (let i = 0; i < list.options.length; ++i) {
+      let option = list.options[i];
       if (option.value == track.id) {
         option.selected = true;
         break;
@@ -237,24 +286,29 @@ shakaDemo.onAdaptation_ = function(event) {
  * @private
  */
 shakaDemo.onTrackSelected_ = function(event) {
-  var list = event.target;
-  var option = list.options[list.selectedIndex];
-  var track = option.track;
-  var player = shakaDemo.player_;
+  let list = event.target;
+  let option = list.options[list.selectedIndex];
+  let track = option.track;
+  let player = shakaDemo.player_;
 
   if (list.id == 'variantTracks') {
     // Disable abr manager before changing tracks
-    var config = {abr: {enabled: false}};
+    let config = {abr: {enabled: false}};
     player.configure(config);
 
     player.selectVariantTrack(track, /* clearBuffer */ true);
   } else {
-    player.selectTextTrack(track);
+    // CEA 608/708 captions data is embedded inside the video stream.
+    if (option.textContent == 'Default Text') {
+      player.selectEmbeddedTextTrack();
+    } else {
+      player.selectTextTrack(track);
+    }
   }
 
   // Adaptation might have been changed by calling selectTrack().
   // Update the adaptation checkbox.
-  var enableAdaptation = player.getConfiguration().abr.enabled;
+  let enableAdaptation = player.getConfiguration().abr.enabled;
   document.getElementById('enableAdaptation').checked = enableAdaptation;
 };
 
@@ -264,11 +318,13 @@ shakaDemo.onTrackSelected_ = function(event) {
  * @private
  */
 shakaDemo.onAudioLanguageSelected_ = function(event) {
-  var list = event.target;
-  var language = list.options[list.selectedIndex].value;
-  var player = shakaDemo.player_;
-
-  player.selectAudioLanguage(language);
+  let list = event.target;
+  let option = list.options[list.selectedIndex].value;
+  let player = shakaDemo.player_;
+  let res = option.split(':');
+  let language = res[0];
+  let role = res[1] || '';
+  player.selectAudioLanguage(language, role);
   shakaDemo.updateVariantTracks_();
 };
 
@@ -278,28 +334,31 @@ shakaDemo.onAudioLanguageSelected_ = function(event) {
  * @private
  */
 shakaDemo.onTextLanguageSelected_ = function(event) {
-  var list = event.target;
-  var language = list.options[list.selectedIndex].value;
-  var player = shakaDemo.player_;
+  let list = event.target;
+  let option = list.options[list.selectedIndex].value;
+  let player = shakaDemo.player_;
+  let res = option.split(':');
+  let language = res[0];
+  let role = res[1] || '';
 
-  player.selectTextLanguage(language);
+  player.selectTextLanguage(language, role);
   shakaDemo.updateTextTracks_();
 };
 
 
 /** @private */
 shakaDemo.updateDebugInfo_ = function() {
-  var video = shakaDemo.video_;
+  let video = shakaDemo.video_;
 
   document.getElementById('videoResDebug').textContent =
       video.videoWidth + ' x ' + video.videoHeight;
 
-  var behind = 0;
-  var ahead = 0;
+  let behind = 0;
+  let ahead = 0;
 
-  var currentTime = video.currentTime;
-  var buffered = video.buffered;
-  for (var i = 0; i < buffered.length; ++i) {
+  let currentTime = video.currentTime;
+  let buffered = video.buffered;
+  for (let i = 0; i < buffered.length; ++i) {
     if (buffered.start(i) <= currentTime && buffered.end(i) >= currentTime) {
       ahead = buffered.end(i) - currentTime;
       behind = currentTime - buffered.start(i);
@@ -308,5 +367,5 @@ shakaDemo.updateDebugInfo_ = function() {
   }
 
   document.getElementById('bufferedDebug').textContent =
-      '- ' + behind.toFixed(0) + 's / ' + '+ ' + ahead.toFixed(0) + 's';
+      '- ' + behind.toFixed(0) + 's / + ' + ahead.toFixed(0) + 's';
 };

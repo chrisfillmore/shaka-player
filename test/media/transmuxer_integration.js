@@ -15,31 +15,23 @@
  * limitations under the License.
  */
 describe('Transmuxer', function() {
-  /** @const */
-  var ContentType = shaka.util.ManifestParserUtils.ContentType;
+  const ContentType = shaka.util.ManifestParserUtils.ContentType;
+
+  const videoSegmentUri = '/base/test/test/assets/video.ts';
+  const audioSegmentUri = '/base/test/test/assets/audio.ts';
+  const mp4MimeType = 'video/mp4; codecs="avc1.42E01E"';
+  const transportStreamVideoMimeType = 'video/mp2t; codecs="avc1.42E01E"';
+  const transportStreamAudioMimeType = 'video/mp2t; codecs="mp4a.40.2"';
 
   /** @type {!ArrayBuffer} */
-  var videoSegment;
+  let videoSegment;
   /** @type {!ArrayBuffer} */
-  var audioSegment;
+  let audioSegment;
   /** @type {!ArrayBuffer} */
-  var emptySegment;
-  /** @const */
-  var videoSegmentUri = '/base/test/test/assets/video.ts';
-  /** @const */
-  var audioSegmentUri = '/base/test/test/assets/audio.ts';
+  let emptySegment;
 
   /** @type {!shaka.media.Transmuxer} */
-  var transmuxer;
-
-  /** @const {string} */
-  var mp4MimeType = 'video/mp4; codecs="avc1.42E01E"';
-
-  /** @const {string} */
-  var transportStreamVideoMimeType = 'video/mp2t; codecs="avc1.42E01E"';
-
-  /** @const {string} */
-  var transportStreamAudioMimeType = 'video/mp2t; codecs="mp4a.40.2"';
+  let transmuxer;
 
 
   beforeAll(function(done) {
@@ -62,79 +54,97 @@ describe('Transmuxer', function() {
   });
 
   describe('isSupported', function() {
-    var isSupported = shaka.media.Transmuxer.isSupported;
+    let isSupported = shaka.media.Transmuxer.isSupported;
     it('returns whether the content type is supported', function() {
-      expect(isSupported(ContentType.VIDEO, mp4MimeType)).toBeFalsy();
-      expect(isSupported(ContentType.VIDEO, transportStreamVideoMimeType))
-          .toBeTruthy();
+      expect(isSupported(mp4MimeType, ContentType.VIDEO)).toBeFalsy();
+      expect(isSupported(transportStreamVideoMimeType, ContentType.VIDEO))
+          .toBe(true);
     });
   });
 
   describe('convertTsCodecs', function() {
+    let convertTsCodecs = shaka.media.Transmuxer.convertTsCodecs;
+
     it('returns converted codecs', function() {
-      var convertedVideoCodecs = shaka.media.Transmuxer
-          .convertTsCodecs(ContentType.VIDEO, transportStreamVideoMimeType);
-      var convertedAudioCodecs = shaka.media.Transmuxer
-          .convertTsCodecs(ContentType.AUDIO, transportStreamAudioMimeType);
-      var expectedVideoCodecs = 'video/mp4; codecs="avc1.42E01E"';
-      var expectedAudioCodecs = 'audio/mp4; codecs="mp4a.40.2"';
+      let convertedVideoCodecs =
+          convertTsCodecs(ContentType.VIDEO, transportStreamVideoMimeType);
+      let convertedAudioCodecs =
+          convertTsCodecs(ContentType.AUDIO, transportStreamAudioMimeType);
+      let expectedVideoCodecs = 'video/mp4; codecs="avc1.42E01E"';
+      let expectedAudioCodecs = 'audio/mp4; codecs="mp4a.40.2"';
       expect(convertedVideoCodecs).toEqual(expectedVideoCodecs);
       expect(convertedAudioCodecs).toEqual(expectedAudioCodecs);
+    });
+
+    it('converts legacy avc1 codec strings', function() {
+      expect(convertTsCodecs(ContentType.VIDEO,
+          'video/mp2t; codecs="avc1.100.42"')).toEqual(
+          'video/mp4; codecs="avc1.64002a"');
+      expect(convertTsCodecs(ContentType.VIDEO,
+          'video/mp2t; codecs="avc1.77.80"')).toEqual(
+          'video/mp4; codecs="avc1.4d0050"');
+      expect(convertTsCodecs(ContentType.VIDEO,
+          'video/mp2t; codecs="avc1.66.1"')).toEqual(
+          'video/mp4; codecs="avc1.420001"');
     });
   });
 
   describe('transmuxing', function() {
     it('transmux video from TS to MP4', function(done) {
-      var sawMDAT = false;
-      transmuxer.transmux(videoSegment, 0).then(function(transmuxedData) {
-        expect(transmuxedData instanceof Uint8Array).toBe(true);
-        expect(transmuxedData.length).toBeGreaterThan(0);
+      let sawMDAT = false;
+
+      transmuxer.transmux(videoSegment).then(function(transmuxedData) {
+        expect(transmuxedData.data).toEqual(jasmine.any(Uint8Array));
+        expect(transmuxedData.data.length).toBeGreaterThan(0);
+        expect(transmuxedData.cues).toEqual(jasmine.any(Array));
         new shaka.util.Mp4Parser()
             .box('mdat', shaka.util.Mp4Parser.allData(function(data) {
               sawMDAT = true;
               expect(data.buffer.byteLength).toBeGreaterThan(0);
             }))
-            .parse(transmuxedData.buffer);
+            .parse(transmuxedData.data.buffer);
         expect(sawMDAT).toBeTruthy();
       }).catch(fail).then(done);
     });
 
     it('transmux audio from TS to MP4', function(done) {
-      var sawMDAT = false;
-      transmuxer.transmux(audioSegment, 0).then(function(transmuxedData) {
-        expect(transmuxedData instanceof Uint8Array).toBe(true);
-        expect(transmuxedData.length).toBeGreaterThan(0);
+      let sawMDAT = false;
+      transmuxer.transmux(audioSegment).then(function(transmuxedData) {
+        expect(transmuxedData.data).toEqual(jasmine.any(Uint8Array));
+        expect(transmuxedData.data.length).toBeGreaterThan(0);
+        expect(transmuxedData.cues).toEqual(jasmine.any(Array));
         new shaka.util.Mp4Parser()
             .box('mdat', shaka.util.Mp4Parser.allData(function(data) {
               sawMDAT = true;
               expect(data.buffer.byteLength).toBeGreaterThan(0);
             }))
-            .parse(transmuxedData.buffer);
+            .parse(transmuxedData.data.buffer);
         expect(sawMDAT).toBeTruthy();
       }).catch(fail).then(done);
     });
 
     it('transmux empty video from TS to MP4', function(done) {
-      var sawMDAT = false;
-      transmuxer.transmux(emptySegment, 0).then(function(transmuxedData) {
-        expect(transmuxedData instanceof Uint8Array).toBe(true);
-        expect(transmuxedData.length).toBeGreaterThan(0);
+      let sawMDAT = false;
+      transmuxer.transmux(emptySegment).then(function(transmuxedData) {
+        expect(transmuxedData.data).toEqual(jasmine.any(Uint8Array));
+        expect(transmuxedData.data.length).toBeGreaterThan(0);
+        expect(transmuxedData.cues).toEqual(jasmine.any(Array));
         new shaka.util.Mp4Parser()
             .box('mdat', shaka.util.Mp4Parser.allData(function(data) {
               sawMDAT = true;
             }))
-            .parse(transmuxedData.buffer);
+            .parse(transmuxedData.data.buffer);
         expect(sawMDAT).toBeFalsy();
       }).catch(fail).then(done);
     });
 
-    it('offsets output timestamps', function(done) {
-      var parsed = false;
-      var expectedMp4Timestamp = 123 * 90000;  // timescale units
-      var mp4Timestamp;
+    it('passes through true timestamps', function(done) {
+      let parsed = false;
+      let expectedMp4Timestamp = 5166000;  // in timescale units
+      let mp4Timestamp;
 
-      transmuxer.transmux(videoSegment, 123).then(function(transmuxedData) {
-        var Mp4Parser = shaka.util.Mp4Parser;
+      transmuxer.transmux(videoSegment).then(function(transmuxedData) {
+        let Mp4Parser = shaka.util.Mp4Parser;
 
         new Mp4Parser()
             .box('moof', Mp4Parser.children)
@@ -148,7 +158,7 @@ describe('Transmuxer', function() {
                   box.reader.readUint64();
               parsed = true;
             })
-            .parse(transmuxedData.buffer);
+            .parse(transmuxedData.data.buffer);
 
         expect(parsed).toBe(true);
         expect(mp4Timestamp).toEqual(expectedMp4Timestamp);

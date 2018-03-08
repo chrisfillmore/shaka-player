@@ -131,7 +131,7 @@ ShakaControls.prototype.init = function(castProxy, onError, notifyCastStatus) {
   this.seekBar_.addEventListener(
       'mousedown', this.onSeekStart_.bind(this));
   this.seekBar_.addEventListener(
-      'touchstart', this.onSeekStart_.bind(this), { passive: true });
+      'touchstart', this.onSeekStart_.bind(this), {passive: true});
   this.seekBar_.addEventListener(
       'input', this.onSeekInput_.bind(this));
   this.seekBar_.addEventListener(
@@ -173,7 +173,7 @@ ShakaControls.prototype.init = function(castProxy, onError, notifyCastStatus) {
       'click', this.onCastClick_.bind(this));
 
   this.videoContainer_.addEventListener(
-      'touchstart', this.onContainerTouch_.bind(this), { passive: false });
+      'touchstart', this.onContainerTouch_.bind(this), {passive: false});
   this.videoContainer_.addEventListener(
       'click', this.onContainerClick_.bind(this));
 
@@ -184,9 +184,9 @@ ShakaControls.prototype.init = function(castProxy, onError, notifyCastStatus) {
   this.videoContainer_.addEventListener(
       'mousemove', this.onMouseMove_.bind(this));
   this.videoContainer_.addEventListener(
-      'touchmove', this.onMouseMove_.bind(this), { passive: true });
+      'touchmove', this.onMouseMove_.bind(this), {passive: true});
   this.videoContainer_.addEventListener(
-      'touchend', this.onMouseMove_.bind(this), { passive: true });
+      'touchend', this.onMouseMove_.bind(this), {passive: true});
   this.videoContainer_.addEventListener(
       'mouseout', this.onMouseOut_.bind(this));
 
@@ -300,8 +300,9 @@ ShakaControls.prototype.onMouseMove_ = function(event) {
 
   // When there is a touch, we can get a 'mousemove' event after touch events.
   // This should be treated as part of the touch, which has already been handled
-  if (this.lastTouchEventTime_ && event.type == 'mousemove')
+  if (this.lastTouchEventTime_ && event.type == 'mousemove') {
     return;
+  }
 
   // Use the cursor specified in the CSS file.
   this.videoContainer_.style.cursor = '';
@@ -410,6 +411,13 @@ ShakaControls.prototype.onPlayPauseClick_ = function() {
 
 /** @private */
 ShakaControls.prototype.onPlayStateChange_ = function() {
+  // On IE 11, a video may end without going into a paused state.  To correct
+  // both the UI state and the state of the video tag itself, we explicitly
+  // pause the video if that happens.
+  if (this.video_.ended && !this.video_.paused) {
+    this.video_.pause();
+  }
+
   // Video is paused during seek, so don't show the play arrow while seeking:
   if (this.enabled_ && this.video_.paused && !this.isSeeking_) {
     this.playPauseButton_.textContent = 'play_arrow';
@@ -494,7 +502,7 @@ ShakaControls.prototype.onVolumeStateChange_ = function() {
     this.volumeBar_.value = this.video_.volume;
   }
 
-  var gradient = ['to right'];
+  let gradient = ['to right'];
   gradient.push('#ccc ' + (this.volumeBar_.value * 100) + '%');
   gradient.push('#000 ' + (this.volumeBar_.value * 100) + '%');
   gradient.push('#000 100%');
@@ -520,8 +528,15 @@ ShakaControls.prototype.onCaptionClick_ = function() {
 
 /** @private */
 ShakaControls.prototype.onTracksChange_ = function() {
-  var hasText = this.player_.getTextTracks().length;
-  this.captionButton_.style.display = hasText ? 'inherit' : 'none';
+  // TS content might have captions embedded in video stream, we can't know
+  // until we start transmuxing. So, always show caption button if we're
+  // playing TS content.
+  if (ShakaDemoUtils.isTsContent(this.player_)) {
+    this.captionButton_.style.display = 'inherit';
+  } else {
+    let hasText = this.player_.getTextTracks().length;
+    this.captionButton_.style.display = hasText ? 'inherit' : 'none';
+  }
 };
 
 
@@ -625,8 +640,8 @@ ShakaControls.prototype.onCastClick_ = function() {
  * @private
  */
 ShakaControls.prototype.onCastStatusChange_ = function(event) {
-  var canCast = this.castProxy_.canCast() && this.castAllowed_;
-  var isCasting = this.castProxy_.isCasting();
+  let canCast = this.castProxy_.canCast() && this.castAllowed_;
+  let isCasting = this.castProxy_.isCasting();
 
   this.notifyCastStatus_(isCasting);
   this.castButton_.style.display = canCast ? 'inherit' : 'none';
@@ -675,7 +690,7 @@ ShakaControls.prototype.isOpaque_ = function() {
   // While you are casting, the UI is always opaque.
   if (this.castProxy_ && this.castProxy_.isCasting()) return true;
 
-  var parentElement = this.controls_.parentElement;
+  let parentElement = this.controls_.parentElement;
   // The controls are opaque if either:
   //   1. We have explicitly made them so in JavaScript
   //   2. The browser has made them so via css and the hover state
@@ -694,25 +709,25 @@ ShakaControls.prototype.updateTimeAndSeekRange_ = function() {
     return;
   }
 
-  var displayTime = this.isSeeking_ ?
+  let displayTime = this.isSeeking_ ?
       this.seekBar_.value : this.video_.currentTime;
-  var duration = this.video_.duration;
-  var bufferedLength = this.video_.buffered.length;
-  var bufferedStart = bufferedLength ? this.video_.buffered.start(0) : 0;
-  var bufferedEnd =
+  let duration = this.video_.duration;
+  let bufferedLength = this.video_.buffered.length;
+  let bufferedStart = bufferedLength ? this.video_.buffered.start(0) : 0;
+  let bufferedEnd =
       bufferedLength ? this.video_.buffered.end(bufferedLength - 1) : 0;
-  var seekRange = this.player_.seekRange();
-  var seekRangeSize = seekRange.end - seekRange.start;
+  let seekRange = this.player_.seekRange();
+  let seekRangeSize = seekRange.end - seekRange.start;
 
   this.seekBar_.min = seekRange.start;
   this.seekBar_.max = seekRange.end;
 
   if (this.player_.isLive()) {
     // The amount of time we are behind the live edge.
-    var behindLive = Math.floor(seekRange.end - displayTime);
+    let behindLive = Math.floor(seekRange.end - displayTime);
     displayTime = Math.max(0, behindLive);
 
-    var showHour = seekRangeSize >= 3600;
+    let showHour = seekRangeSize >= 3600;
 
     // Consider "LIVE" when less than 1 second behind the live-edge.  Always
     // show the full time string when seeking, including the leading '-';
@@ -730,7 +745,7 @@ ShakaControls.prototype.updateTimeAndSeekRange_ = function() {
       this.seekBar_.value = seekRange.end - displayTime;
     }
   } else {
-    var showHour = duration >= 3600;
+    let showHour = duration >= 3600;
 
     this.currentTime_.textContent =
         this.buildTimeString_(displayTime, showHour);
@@ -742,21 +757,21 @@ ShakaControls.prototype.updateTimeAndSeekRange_ = function() {
     this.currentTime_.style.cursor = '';
   }
 
-  var gradient = ['to right'];
+  let gradient = ['to right'];
   if (bufferedLength == 0) {
     gradient.push('#000 0%');
   } else {
-    var clampedBufferStart = Math.max(bufferedStart, seekRange.start);
-    var clampedBufferEnd = Math.min(bufferedEnd, seekRange.end);
+    let clampedBufferStart = Math.max(bufferedStart, seekRange.start);
+    let clampedBufferEnd = Math.min(bufferedEnd, seekRange.end);
 
-    var bufferStartDistance = clampedBufferStart - seekRange.start;
-    var bufferEndDistance = clampedBufferEnd - seekRange.start;
-    var playheadDistance = displayTime - seekRange.start;
+    let bufferStartDistance = clampedBufferStart - seekRange.start;
+    let bufferEndDistance = clampedBufferEnd - seekRange.start;
+    let playheadDistance = displayTime - seekRange.start;
 
     // NOTE: the fallback to zero eliminates NaN.
-    var bufferStartFraction = (bufferStartDistance / seekRangeSize) || 0;
-    var bufferEndFraction = (bufferEndDistance / seekRangeSize) || 0;
-    var playheadFraction = (playheadDistance / seekRangeSize) || 0;
+    let bufferStartFraction = (bufferStartDistance / seekRangeSize) || 0;
+    let bufferEndFraction = (bufferEndDistance / seekRangeSize) || 0;
+    let playheadFraction = (playheadDistance / seekRangeSize) || 0;
 
     gradient.push('#000 ' + (bufferStartFraction * 100) + '%');
     gradient.push('#ccc ' + (bufferStartFraction * 100) + '%');
@@ -779,11 +794,11 @@ ShakaControls.prototype.updateTimeAndSeekRange_ = function() {
  * @private
  */
 ShakaControls.prototype.buildTimeString_ = function(displayTime, showHour) {
-  var h = Math.floor(displayTime / 3600);
-  var m = Math.floor((displayTime / 60) % 60);
-  var s = Math.floor(displayTime % 60);
+  let h = Math.floor(displayTime / 3600);
+  let m = Math.floor((displayTime / 60) % 60);
+  let s = Math.floor(displayTime % 60);
   if (s < 10) s = '0' + s;
-  var text = m + ':' + s;
+  let text = m + ':' + s;
   if (showHour) {
     if (m < 10) text = '0' + text;
     text = h + ':' + text;
