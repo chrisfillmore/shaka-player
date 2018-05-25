@@ -301,6 +301,15 @@ shakaDemo.load = function() {
   // Revert to default poster while we load.
   shakaDemo.localVideo_.poster = shakaDemo.mainPoster_;
 
+  // Use manifestUri for clock sync. For testing purposes.
+  player.configure({
+    manifest: {
+      dash: {
+        clockSyncUri: asset.manifestUri
+      }
+    }
+  });
+
   let configureCertificate = Promise.resolve();
 
   if (asset.certificateUri) {
