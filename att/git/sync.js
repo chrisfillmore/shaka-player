@@ -90,10 +90,10 @@ function pullFromUpstream () {
 function pushToOrigin () {
   const origin = config.git.remote.origin;
   const upstream = config.git.remote.upstream;
-  const syncBranchName = `${config.git.branchPrefix}${upstream.name}Sync_${new Date().toISOString()}`
+  const syncBranchName = `${config.git.syncBranchPrefix}${upstream.name}Sync_${new Date().toISOString()}`
 
-  return GitHelper.checkout(syncBranchName)
-    .then(() => GitHelper.pushAllBranches());
+  return GitHelper.checkout(syncBranchName, true)
+    .then(() => GitHelper.pushAllBranches(origin.name));
 }
 
 function onError (error) {

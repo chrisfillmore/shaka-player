@@ -73,8 +73,13 @@ module.exports = {
    * @param {string} what
    * @returns {Promise}
    */
-  checkout (what) {
-    return git.checkout(what);
+  checkout (what, newBranch) {
+    const args = [what];
+    if (newBranch) {
+      args.push('-b');
+    }
+
+    return git.checkout(args);
   },
 
   /**
