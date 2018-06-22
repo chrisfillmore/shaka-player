@@ -12,7 +12,7 @@ module.exports = {
       },
       origin: {
         name: 'origin',
-        url: 'ssh://git@egbitbucket.dtvops.net:7999/vstblib/shaka-player.git'
+        url: '/Users/chrisf/Documents/repo/fork/shaka-player/'
       }
     }
   },
