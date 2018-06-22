@@ -76,7 +76,7 @@ module.exports = {
   checkout (what, newBranch) {
     const args = [what];
     if (newBranch) {
-      args.push('-b');
+      args.unshift('-b');
     }
 
     return git.checkout(args);
