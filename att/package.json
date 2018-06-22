@@ -1,0 +1,15 @@
+{
+  "name": "shaka-player-att-ext",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "sync": "node ./git/sync.js",
+    "postinstall": "npm run sync"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "simple-git": "^1.96.0"
+  }
+}
