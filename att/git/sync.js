@@ -96,7 +96,7 @@ function pushToOrigin () {
 
 function getSyncBranchName () {
   const upstream = config.git.remote.upstream;
-  const dateTime = new Date().toISOString().split('.')[0].replace(':','-');
+  const dateTime = new Date().toISOString().split('.')[0].replace(/:/g,'-');
 
   return `${config.git.syncBranchPrefix}${upstream.name}Sync_${dateTime}`;
 }
