@@ -89,13 +89,13 @@ function pullFromUpstream () {
 
 function pushToOrigin () {
   const origin = config.git.remote.origin;
-  const upstream = config.git.remote.upstream;
 
   return GitHelper.checkout(getSyncBranchName(), true)
     .then(() => GitHelper.pushAllBranches(origin.name));
 }
 
 function getSyncBranchName () {
+  const upstream = config.git.remote.upstream;
   const dateTime = new Date().toISOString().split('.')[0].replace(':','-');
 
   return `${config.git.syncBranchPrefix}${upstream.name}Sync_${dateTime}`;
